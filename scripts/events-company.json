@@ -16,6 +16,9 @@
     { "name": "country",        "type": "VARCHAR" },
     { "name": "region",         "type": "VARCHAR" },
     { "name": "browser_family", "type": "VARCHAR" },
-    { "name": "device_type",    "type": "VARCHAR" }
+    { "name": "device_type",    "type": "VARCHAR" },
+    { "name": "load_time",      "type": "TIMESTAMP" },
+    { "name": "load_no",        "type": "VARCHAR" },
+    { "name": "filename",       "type": "VARCHAR" }
   ]
 }
