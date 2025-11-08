@@ -29,7 +29,7 @@ def parse_args():
     return ap.parse_args()
 
 
-def load_config(config_path: str):
+def load_config(config_path):
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
 
@@ -45,7 +45,7 @@ def load_config(config_path: str):
     return dsn, schema
 
 
-def setup_duckdb(dsn: str):
+def setup_duckdb(dsn):
     con = duckdb.connect(database="load_metadata.duckdb")
     con.sql("install postgres; load postgres;")
     con.sql("install parquet; load parquet;")
@@ -67,7 +67,7 @@ def setup_duckdb(dsn: str):
 def get_new_files(con, files, table_name, force_load=False):
     """Return new (not yet loaded) and skipped files."""
     if force_load:
-        print("Force load enabled — all files will be reloaded.")
+        print("Force load enabled — reloading all files")
         return files, []
 
     if not files:
@@ -142,10 +142,14 @@ def insert_files(con, files, target_table, load_no):
 
 
 def main():
+    print("Starting DuckDB loader")
+    print("Source: CSV/Parquet → Target: Postgres (PG)")
+
     args = parse_args()
     dsn, schema = load_config(args.config)
     con = setup_duckdb(dsn)
-    target_table = f"pg.{args.table}"
+    attached_postgres_db = 'pg'
+    target_table = f"{attached_postgres_db}.{args.table}"
 
     all_files = [os.path.abspath(f) for f in glob.glob(args.filename, recursive=True)]
     if not all_files:
