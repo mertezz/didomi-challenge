@@ -1,14 +1,10 @@
 import argparse
 import os
 import glob
+import secrets
 import yaml
 import duckdb
 import json
-from datetime import datetime
-import uuid
-
-from wheel.cli import tags_f
-
 
 def parse_args():
     ap = argparse.ArgumentParser(
@@ -38,7 +34,7 @@ def load_config(config_path: str):
         cfg = yaml.safe_load(f)
 
     env_name = os.getenv("RUN_MODE", cfg.get("default", "local"))
-    print(f"RUN_MODE = {env_name}")
+    print(f"Run mode: {env_name}")
     env = cfg["environments"][env_name]["database"]
 
     dsn = (
@@ -95,7 +91,7 @@ def get_new_files(con, files, table_name, force_load=False):
 def create_table(con, filename, target_table, schema_file=None):
     """Create target table if not exists."""
     if schema_file and os.path.exists(schema_file):
-        print(f"Using explicit schema from {schema_file}")
+        print(f"Using explicit schema from file: {schema_file}")
         with open(schema_file, "r") as f:
             schema = json.load(f)
         cols = ",\n    ".join([f'"{c["name"]}" {c["type"]}' for c in schema["columns"]])
@@ -123,7 +119,6 @@ def truncate_table(con, target_table):
     print(f"Truncating {target_table}")
     con.sql(f"truncate table {target_table};")
 
-
 def insert_metadata(con, filename, table_name, load_no, status="loaded"):
     con.sql(f"""
         insert into load_metadata (filename, table_name, load_time, load_no, status)
@@ -132,23 +127,13 @@ def insert_metadata(con, filename, table_name, load_no, status="loaded"):
 
 
 def insert_files(con, files, target_table, load_no):
-
-    # Insert all or nothing
     for f in files:
         print(f"Inserting {f} → {target_table}")
         try:
-            # choose correct reader based on file extension
-            if f.endswith(".parquet"):
-                read_cmd = f"read_parquet('{f}')"
-            elif f.endswith(".csv"):
-                read_cmd = f"read_csv_auto('{f}')"
-            else:
-                raise ValueError(f"Unsupported file format: {f}")
-
             con.sql(f"""
                 insert into {target_table}
                 select t.*, current_timestamp as load_time, '{load_no}' as load_no, '{os.path.basename(f)}' as filename
-                from {read_cmd} t;
+                from '{f}' t;
             """)
             insert_metadata(con, f, target_table, load_no, status="loaded")
         except Exception as e:
@@ -167,7 +152,7 @@ def main():
         raise ValueError(f"No files found for pattern: {args.filename}")
 
     new_files, skipped = get_new_files(con, all_files, target_table, args.force_load)
-    load_no = str(uuid.uuid4())[:8]  # short unique batch ID
+    load_no = secrets.token_hex(6)  # short unique batch ID
 
     if not new_files:
         print(f"No new files to load into {args.table}")

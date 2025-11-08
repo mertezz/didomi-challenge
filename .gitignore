@@ -1,11 +1,10 @@
-# Exclude directories
+# Exclude directories & files
 postgres-data
 postgres-data/
 dbt_project/logs/
 dbt_project/target/
-duck-db/
-
-
+scripts/load_metadata.duckdb
+scripts/didomi.db
 
 # Python cache and compiled files
 **/__pycache__/
