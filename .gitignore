@@ -1,0 +1,21 @@
+# Exclude directories
+postgres-data
+postgres-data/
+dbt_project/logs/
+dbt_project/target/
+duck-db/
+
+
+
+# Python cache and compiled files
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Environment and editor files
+.env
+.DS_Store
+.idea/
+.vscode/
+

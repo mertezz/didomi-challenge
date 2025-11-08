@@ -1,0 +1,21 @@
+{
+  "columns": [
+    { "name": "event_id",       "type": "VARCHAR" },
+    { "name": "type",           "type": "VARCHAR" },
+    { "name": "rate",           "type": "DOUBLE PRECISION" },
+    { "name": "parameters",     "type": "VARCHAR" },
+    { "name": "event_time",     "type": "VARCHAR" },
+    { "name": "window_start",   "type": "VARCHAR" },
+    { "name": "apikey",         "type": "VARCHAR" },
+    { "name": "consent",        "type": "VARCHAR" },
+    { "name": "count",          "type": "BIGINT" },
+    { "name": "experiment",     "type": "DOUBLE PRECISION" },
+    { "name": "sdk_type",       "type": "VARCHAR" },
+    { "name": "domain",         "type": "VARCHAR" },
+    { "name": "deployment_id",  "type": "VARCHAR" },
+    { "name": "country",        "type": "VARCHAR" },
+    { "name": "region",         "type": "VARCHAR" },
+    { "name": "browser_family", "type": "VARCHAR" },
+    { "name": "device_type",    "type": "VARCHAR" }
+  ]
+}

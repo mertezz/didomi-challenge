@@ -1,0 +1,20 @@
+default: container
+
+environments:
+  local:
+    database:
+      host: localhost
+      port: 5432
+      user: ae_interview
+      password: password
+      dbname: analytics_db
+      schema: raw
+
+  container:
+    database:
+      host: db
+      port: 5432
+      user: ae_interview
+      password: password
+      dbname: analytics_db
+      schema: raw
