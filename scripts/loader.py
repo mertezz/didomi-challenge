@@ -13,7 +13,8 @@ def parse_args():
     )
     ap.add_argument("--config", default="config.yml", help="Path to YAML config file")
     ap.add_argument("--filename", required=True, help="Input file or glob pattern (supports *.csv, *.parquet)")
-    ap.add_argument("--table", required=True, help="Target table name in Postgres (e.g. raw.events)")
+    ap.add_argument("--schema", help="Optional target schema (overrides default schema from config)")
+    ap.add_argument("--table", required=True, help="Target table name in Postgres (eg. events)")
     ap.add_argument("--enforce-schema", help="Optional schema file (JSON) to create table structure explicitly")
     ap.add_argument(
         "--write-disposition",
@@ -33,25 +34,31 @@ def load_config(config_path):
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
 
-    env_name = os.getenv("RUN_MODE", cfg.get("default", "local"))
-    print(f"Run mode: {env_name}")
-    env = cfg["environments"][env_name]["database"]
+    run_mode = os.getenv("RUN_MODE", cfg.get("default", "local"))
+    env = cfg["environments"][run_mode]["database"]
 
-    dsn = (
-        f"postgresql://{env['user']}:{env['password']}@"
-        f"{env['host']}:{env['port']}/{env['dbname']}"
-    )
+    user = env.get("user")
+    password = env.get("password")
+    host = env.get("host", "localhost")
+    port = env.get("port", 5432)
+    dbname = env.get("dbname")
     schema = env.get("schema", "public")
-    return dsn, schema
+
+    dsn = f"postgresql://{user}:{password}@{host}:{port}/{dbname}"
+
+    return dsn, host, port, dbname, schema, run_mode
 
 
-def setup_duckdb(dsn):
+def setup_duckdb(dsn, postgres_alias, schema):
     con = duckdb.connect(database="load_metadata.duckdb")
     con.sql("install postgres; load postgres;")
     con.sql("install parquet; load parquet;")
-    con.sql(f"attach '{dsn}' as pg (type postgres);")
+    con.sql(f"attach '{dsn}' as {postgres_alias} (type postgres);")
 
-    # ensure metadata table exists
+    # Ensure default schema exists in Postgres
+    con.sql(f"create schema if not exists {postgres_alias}.{schema};")
+
+    # Ensure metadata table exists in DuckDB
     con.sql("""
         create table if not exists load_metadata (
             filename text,
@@ -142,14 +149,20 @@ def insert_files(con, files, target_table, load_no):
 
 
 def main():
-    print("Starting DuckDB loader")
-    print("Source: CSV/Parquet → Target: Postgres (PG)")
-
+    postgres_alias = 'pg'
     args = parse_args()
-    dsn, schema = load_config(args.config)
-    con = setup_duckdb(dsn)
-    attached_postgres_db = 'pg'
-    target_table = f"{attached_postgres_db}.{args.table}"
+    dsn, host, port, dbname, schema_default, run_mode = load_config(args.config)
+    schema = args.schema or schema_default  # override if provided
+    con = setup_duckdb(dsn, postgres_alias, schema)
+    target_table = f"{postgres_alias}.{schema}.{args.table}"
+
+    print("Starting DuckDB loader")
+    print(f"  Run mode : {run_mode}")
+    print(f"  Source   : {args.filename}")
+    print(f"  Target   : {host}:{port}/{dbname}")
+    print(f"  Schema   : {schema}")
+    print(f"  Table    : {args.table}")
+    print("")
 
     all_files = [os.path.abspath(f) for f in glob.glob(args.filename, recursive=True)]
     if not all_files:
@@ -176,3 +189,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
