@@ -10,3 +10,12 @@ interview_project:
       port: 5432
       schema: main
       threads: 4
+    local:
+      type: postgres
+      host: localhost
+      user: ae_interview
+      password: password
+      dbname: analytics_db
+      port: 5432
+      schema: main
+      threads: 4

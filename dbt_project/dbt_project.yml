@@ -13,4 +13,17 @@ clean-targets:
 
 models:
   interview_project:
-    materialized: view
+    materialized: table
+    persist_docs: # in addition to DBT metadata also save docs in Postgres
+      relation: true          # table/view comment
+      columns: true           # column comments
+
+    # Apply to models in folders:
+    # Use + before the key to avoid confusion between configs and folders. Example:
+    #    staging:
+    #      +schema: staging
+    staging:
+      schema: staging
+
+    mart:
+      schema: mart
