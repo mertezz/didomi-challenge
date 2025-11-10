@@ -21,7 +21,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      - RUN_MODE=container
+      - RUN_MODE=dev
     volumes:
       - .:/app
     working_dir: /app

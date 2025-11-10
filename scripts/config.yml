@@ -1,4 +1,4 @@
-default: container
+default: dev
 
 environments:
   local:
@@ -10,7 +10,7 @@ environments:
       dbname: analytics_db
       schema: raw
 
-  container:
+  dev:
     database:
       host: db
       port: 5432
