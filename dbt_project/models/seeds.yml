@@ -1,0 +1,7 @@
+version: 2
+
+seeds:
+  - name: countries
+    description: "List of countries with ISO codes and continent / region classification based on ISO 3166."
+    config:
+      schema: raw
