@@ -1,0 +1,37 @@
+version: 2
+
+sources:
+  - name: raw
+    description: Postgres database containing raw input data for the Didomi analytics challenge
+    schema: raw
+
+    tables:
+      - name: countries
+        description: >
+          Country reference table with ISO and regional codes.
+          Source: https://github.com/lukes/ISO-3166-Countries-with-Regional-Codes
+        columns:
+          - name: name
+            description: Official country name
+            tests: [not_null]
+          - name: alpha_2
+            description: ISO 3166-1 alpha-2 country code
+            tests: [unique, not_null]
+          - name: alpha_3
+            description: ISO 3166-1 alpha-3 country code
+          - name: country_code
+            description: Numeric country code (ISO 3166-1)
+          - name: iso_3166_2
+            description: ISO 3166-2 subdivision reference
+          - name: region
+            description: UN region (e.g. Europe, Asia)
+          - name: sub_region
+            description: UN sub-region
+          - name: intermediate_region
+            description: UN intermediate region
+          - name: region_code
+            description: Numeric UN region code
+          - name: sub_region_code
+            description: Numeric UN sub-region code
+          - name: intermediate_region_code
+            description: Numeric UN intermediate region code
