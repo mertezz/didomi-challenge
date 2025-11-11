@@ -1,13 +1,17 @@
 with stg as (
     select *
-    from {{ ref('country_stg') }}
+    from {{ ref('stg_country') }}
 )
 
 select
     -- Surrogate key
     {{ dbt_utils.generate_surrogate_key(['code']) }} country_sk,
 
-    -- Natural/business keys
+    -- SCD
+    {{ default_timestamp_minimum() }} valid_from,
+    {{ default_timestamp_maximum() }} valid_to,
+
+    -- Natural keys
     coalesce(code, {{ default_string() }}) country_code,
     coalesce(code_numeric, {{ default_int64() }}) country_code_numeric,
 
@@ -18,6 +22,7 @@ select
 
     -- Metadata
     {{ run_id() }} run_id,
-    {{ default_timestamp_minimum() }} valid_from,
-    {{ default_timestamp_maximum() }} valid_to
+    ingest_dttm,
+    update_dttm,
+    origin
 from stg
