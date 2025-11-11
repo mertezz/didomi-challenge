@@ -1,4 +1,13 @@
+# todo
+ui.action purpose changed.. ce je kaj zadodtaj..
 
+
+--- finindgs (pa sej ne vem ce so vsi)
+- event data -> user can create multiple consents whether be it because of changes in purpose or allowed vendors
+- TODO ANALYSIS thorgouht.. use based..
+- dbt
+  - profiles.yml was move direcly to project because we do not have muliptle profiles..
+  - seeds: countries -> https://github.com/lukes/ISO-3166-Countries-with-Regional-Codes
 
 ## Project overview
 
@@ -19,15 +28,59 @@
    - Any trade-offs or important choices you made
    - -----------------
 environemnts: introduciton of a new docker-compose variable to support both local development and container runs (RUN_MODE). As it was only one variable introducition of docker-compose profiles was not deemed necesary
+local development:
+- export DBT_TARGET=local 
+- export RUN_MODE=local
 
 loader: 
 - concept load data first and then clean it in one place (reduce disperse logic across several systems, support slim/simple loader -> less margin for errors because of cleansing)
 - in search for a generic approach that would allow peformanc, robustness and flexibliltiy (eg. various formats)
+- local developmnet possible with an additional system varible (export run_mode=local)
 - considered: 
   - dataframes (eg. Pandas/Polars)
   - bulk loads via postgres extensions (eg. pg_parquet)
   - bulk loads via DuckDB
 DuckDB was selected because of its fast perfrmance (eg. parallel read on parquet file row groups and parallel processing and over multiple Parquet files at the same time using the glob syntax), portability, broad file supports and good integration with Postgres. It was the most suitable candidate because is it not only support loading data but also enables exploration on raw files without the intorduciton other libraries/tools (so used for loading, potential transformations and data exploration of raw data). 
+
+File columns names case is preserved (quoted). missing file header results in generic column namings (column01, ..) 
+
+FACTs
+- should describe processes (check..)
+- 
+### Surrogate keys and their role
+When creating surrogate keys and defining relationships between facts and dimensions, several approaches exist. Two of them are outlined below:
+- **Early-binding approach:**  
+  in traditional dwh design, surrogate keys (sk) are generated within dimensions as independent, sometimes random unique identifiers. When loading fact tables, fact data is joined to dimensions on the business key (and time fields for scd handling) to fetch the correct sk.  
+  The resulting fact record points directly to a unique, time-specific dimension row.  
+  *Drawback:* facts depend on preloaded dimensions, increasing etl complexity and coupling.
+
+- **Late-binding approach:**  
+  Surrogate and foreign keys are derived on the fly from business keys and a time field, avoiding joins during fact preparation.  
+  This enables independent loading of facts and dimensions and simplifies pipelines.  
+  *Drawback:* at query time, consumers must include a time-based filter to align historical context, increasing risk of user error and slower joins.
+
+In the prototype challenge, a **late-binding** strategy was applied for flexibility and simplicity. For production environments, a **hybrid** or **early-binding** approach is advisable to ensure data stability and reduce risk for less experienced users.
+
+### Dimensions
+Following Kimball dimensional modeling principles, several potential dimensions were evaluated to be created or extracted from the `fct_event` dataset: `dim_device`, `dim_event_type`, `dim_consent_status`, `dim_experiment`, `dim_domain`, `dim_deployment`, `dim_user`, `dim_vendor`,..  
+ 
+These dimensions were **not implemented** as separate entities. Instead, their attributes were kept as **degenerate dimensions** within the fact table (stored directly in `fct_event` without foreign keys).
+
+**Rationale**  
+- Each of these entities currently contains only **one** or **two** attributes, which do not provide descriptive context that would improve understanding of the dimension.  
+- The assignment scope does not require additinoal descriptive attributes or lookup attributes (eg. labels, hierarchies, or textual descriptions).  
+- Avoiding unnecessary joins improves model simplicity and query performance.  
+- The decision is a **design compromise**. Typically, dimensional attributes are externalized to dedicated dimension tables to support reuse, hierarchy navigation, and descriptive enrichment.
+
+**Future Considerations**  
+In a real production scenario, these degenerate dimensions would likely evolve into fully developed conformed dimensions, supporting:  
+- richer attribute context (eg. device families, user segments, event type hierarchies),  
+- drill-down / roll-up capabilities in reporting,  
+- consistent reuse across multiple fact tables.
+
+### Time standardization (UTC)
+Timestamps used for linking facts and dimensions are standardized to UTC to ensure consistent temporal joins across systems.
+End-user reporting or presentation layers may apply local time zone conversions as needed. In this challenge, such conversions were not implemented.
 
 ## Key Insights
 
