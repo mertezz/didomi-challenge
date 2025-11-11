@@ -15,6 +15,14 @@
     0
 {% endmacro %}
 
+{% macro default_date_minimum() %}
+    '1900-01-01'::date
+{% endmacro %}
+
+{% macro default_date_maximum() %}
+    '9999-12-31'::date
+{% endmacro %}
+
 {% macro default_timestamp_minimum() %}
     '1900-01-01'::timestamp
 {% endmacro %}
