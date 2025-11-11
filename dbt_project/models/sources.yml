@@ -6,6 +6,27 @@ sources:
     schema: raw
 
     tables:
+      - name: country_and_industry
+        description: >
+          Company information with industry classifications and headquarters country.
+          Source: input/country_and_industry/industry and country.csv
+        columns:
+          - name: "PUBLIC_API_KEY"
+            description: Unique company identifier (primary key).
+            tests: [ unique, not_null ]
+          - name: "INDUSTRY_BACK"
+            description: Detailed backend industry classification (e.g., "Media & Publishers", "Gaming / Sport", "Food / Beverage / Consumer Staples").
+          - name: "INDUSTRY_FRONT"
+            description: Simplified frontend industry classification (e.g., "Media & Publishers", "Sport", "Gaming").
+          - name: "HQ_COUNTRY"
+            description: Headquarters country name.
+          - name: load_time
+            description: Time when the record was loaded.
+          - name: load_no
+            description: Incremental load number.
+          - name: filename
+            description: Input file name used for ingestion.
+
       - name: countries
         description: >
           Country reference table with ISO and regional codes.
