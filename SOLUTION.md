@@ -8,6 +8,17 @@ ui.action purpose changed.. ce je kaj zadodtaj..
 - dbt
   - profiles.yml was move direcly to project because we do not have muliptle profiles..
   - seeds: countries -> https://github.com/lukes/ISO-3166-Countries-with-Regional-Codes
+  - tags (za schedule + area), 
+  - uq macro, 
+  - incremental = (today set v variablo - poglej tudi druge),
+  - on schema change dodaj.. pri incrementih
+  - data checks
+  - unit tests
+
+- duckdb..      
+- dotakni se semantci models (v dbt or snowfalke)
+
+
 
 ## Project overview
 
@@ -21,6 +32,12 @@ ui.action purpose changed.. ce je kaj zadodtaj..
 ## Data Quality Observations
    - What data quality issues did you encounter?
    - How did you handle them?
+-----
+todo: dodaj quality iz vprasanj mail
+experiment column left out because it was empty. 
+
+
+
 
 ## Architecture Decisions
    - Your data ingestion strategy and rationale
@@ -44,53 +61,135 @@ DuckDB was selected because of its fast perfrmance (eg. parallel read on parquet
 
 File columns names case is preserved (quoted). missing file header results in generic column namings (column01, ..) 
 
-FACTs
-- should describe processes (check..)
-- 
-### Surrogate keys and their role
+### dbt
+
+#### Structure
+Project structure follows standard dbt practices, with separate folders representing data layers (raw, staging, marts).  
+Each folder maps directly to a physical database schema, making it easy to locate corresponding tables and models.
+
+In larger organizations with several department (eg. marketing, sales, consent-management), an additional subfolder level could be introduced in the `staging` and `mart` folder. To keep a flat structure, such organizational context can also be encoded in model names (eg. `fct_cm_event`), improving table uniqueness across departments. The `raw` layer can similarly be organized by source systems when dealing with a large number of sources.
+
+Schema mapping logic is customized via [`generate_schema_name.sql`](dbt_project/macros/generate_schema_name.sql).  
+
+For simplicity, `profiles.yml`, `dbt_project.yml`, and `packages.yml` are all stored in the project root.
+
+Due to small project size, all **schemas, seeds,** and **sources** are defined in single files (`schema.yml`, `seeds.yml`, `source.yml`) under `/models`.
+
+#### Macros
+Jinja templating adds flexibility but can reduce readability and maintainability. 
+Macros were used **only when necessary** to keep the solution simple and maintainable.  
+
+The project reuses **community packages** (eg. `dbt_utils.generate_surrogate_key()`) instead of re-implementing standard utilities.
+
+#### Materialisation TODO
+Materialisaiton are crucial for efficient ... For simplicy and easier maintenace the default materialisation has been changed from `view` to `table`. An excepiton to these are facts where incremental materialisation is used.
+
+Incremantal materialisation can support different strategies. In the project there are two examples of such strategies:
+- `delete+insert` - suitable for staging tables
+-  `merge`   - TODO
+- `microbatch` - suitable for large dataset and iterative reloads  
+
+Both are dbt's built in strategies that are implemented with an additional step. While loading the target an additional temporary table is build from which then the load reads and inserts the data into the target. Unfortunatelly this intermediate step cannot be skipped so the only way to improve is to potentially try to create your own materialisation (which comes with a maintenance overhead).
+
+#### Data checks
+Data checks ... several types
+
+#### Unit tests
+Unit test .. 
+
+
+#### Tags 
+scheduling + graph operations
+
+#### Loads
+full-refresh:
+incremental: different strategies.. mention microbatches for large dataset.. also caveats..
+
+
+### Modeling 
+
+#### Naming standards
+The project follows consistent naming conventions aligned with common data warehousing practices.
+
+Schemas:
+- `raw` —  untransformed source data loaded as-is from operational systems or files.  
+- `staging` — temporary data prepared for modeling (ephemeral).  
+- `mart` — dimensional models optimized for analytics (facts and dimensions).  
+- `report` — reporting-ready tables tailored to specific dashboard needs; not intended for company-wide sharing.
+
+Table types
+- `stg_` — staging tables; used for normalization and preparation of raw data.  
+- `dim_` — dimension tables.  
+- `fct_` — transactional fact tables describing business process performance.  
+
+Attribute suffix conventions
+- `_sk` — surrogate key.  
+- `_fk` — foreign key.  
+- `_uq` — unique key made by combining several fields. Mainly used in fact tables to simplify maintenance.
+- `_id` — natural or business identifier from source data.  
+- `_code` — standardized code values (eg, ISO country code).  
+- `_no` — numeric business identifiers (eg., invoice_no).  
+- `_flag` / `_ind` — boolean or indicator fields (Y/N).  
+- `_dttm` — timestamp field.  
+- `_dt` — date type field.  
+- `valid_from`, `valid_to` — validity columns for dimensions (non-historical in this challenge, but included for consistency).  
+
+Metadata columns
+- `run_id` — dbt execution identifier for lineage and troubleshooting.  
+- `ingest_dttm` — timestamp of data ingestion.  
+- `update_dttm` — timestamp of last record update (if applicable).  
+- `origin` — data origin, typically file name or source system reference.  
+
+#### Surrogate keys and their role
 When creating surrogate keys and defining relationships between facts and dimensions, several approaches exist. Two of them are outlined below:
 - **Early-binding approach:**  
   in traditional dwh design, surrogate keys (sk) are generated within dimensions as independent, sometimes random unique identifiers. When loading fact tables, fact data is joined to dimensions on the business key (and time fields for scd handling) to fetch the correct sk.  
   The resulting fact record points directly to a unique, time-specific dimension row.  
-  *Drawback:* facts depend on preloaded dimensions, increasing etl complexity and coupling.
+  *Drawback:* facts depend on preloaded dimensions, increasing etl time, complexity and coupling.
 
 - **Late-binding approach:**  
   Surrogate and foreign keys are derived on the fly from business keys and a time field, avoiding joins during fact preparation.  
   This enables independent loading of facts and dimensions and simplifies pipelines.  
-  *Drawback:* at query time, consumers must include a time-based filter to align historical context, increasing risk of user error and slower joins.
+  *Drawback:* At query time, consumers must include a time-based filter to align historical context, increasing risk of duplicated data and slower joins.
 
-In the prototype challenge, a **late-binding** strategy was applied for flexibility and simplicity. For production environments, a **hybrid** or **early-binding** approach is advisable to ensure data stability and reduce risk for less experienced users.
+In the prototype challenge, a **late-binding** strategy was applied for flexibility and simplicity. For production environments, a hybrid or **early-binding** approach is advisable to ensure data stability and reduce risk for less experienced users.
 
-### Dimensions
-Following Kimball dimensional modeling principles, several potential dimensions were evaluated to be created or extracted from the `fct_event` dataset: `dim_device`, `dim_event_type`, `dim_consent_status`, `dim_experiment`, `dim_domain`, `dim_deployment`, `dim_user`, `dim_vendor`,..  
+#### Dimensions
+Following Kimball dimensional modeling principles, several potential dimensions were considered to be created or derived from the provided raw event dataset: `dim_device`, `dim_event_type`, `dim_consent_status`, `dim_experiment`, `dim_domain`, `dim_deployment`, `dim_user`, `dim_vendor`,..  
  
 These dimensions were **not implemented** as separate entities. Instead, their attributes were kept as **degenerate dimensions** within the fact table (stored directly in `fct_event` without foreign keys).
 
-**Rationale**  
-- Each of these entities currently contains only **one** or **two** attributes, which do not provide descriptive context that would improve understanding of the dimension.  
-- The assignment scope does not require additinoal descriptive attributes or lookup attributes (eg. labels, hierarchies, or textual descriptions).  
+This decisions was taken because:
+- Each of these entities currently contains only one or two attributes, which do not provide descriptive context that would improve understanding of the analysed data.  
+- Within the assignment scope, no additional descriptive or lookup attributes (eg., labels, hierarchies, textual descriptions) were identified as necessary to include.
 - Avoiding unnecessary joins improves model simplicity and query performance.  
-- The decision is a **design compromise**. Typically, dimensional attributes are externalized to dedicated dimension tables to support reuse, hierarchy navigation, and descriptive enrichment.
 
-**Future Considerations**  
-In a real production scenario, these degenerate dimensions would likely evolve into fully developed conformed dimensions, supporting:  
-- richer attribute context (eg. device families, user segments, event type hierarchies),  
+The decision is a **design compromise**. Typically, dimensional attributes are externalized to dedicated dimension tables to support reuse, hierarchy navigation, and descriptive enrichment.
+
+In a future production setup, these degenerate dimensions would likely evolve into fully developed conformed dimensions, supporting:  
+- richer attribute context (eg. device families and other atriburtes, user segments, ..),  
 - drill-down / roll-up capabilities in reporting,  
 - consistent reuse across multiple fact tables.
 
-### Time standardization (UTC)
-Timestamps used for linking facts and dimensions are standardized to UTC to ensure consistent temporal joins across systems.
+As part of the assignment the following dimensions were implemented: 
+- `dim_company`
+- `dim_country`
+- `dim_date`
+
+Each dimension also includes the default row to handle unmatched fact records. Dimensions currently do not track any history.
+
+#### Facts
+TOOD- should describe processes (check..)
+
+#### Time standardization (UTC)
+Timestamps used for linking facts and dimensions are standardized to UTC to ensure consistent across systems.
 End-user reporting or presentation layers may apply local time zone conversions as needed. In this challenge, such conversions were not implemented.
 
+
+
 ## Key Insights
-
+TODO
    - 2-3 interesting findings from the metrics you calculated about consent behavior, company performance, or other patterns in the data
-
-## Architecture Decisions
-   - Anything else the reviewer should know about your solution
-
-
-
 
 
 ## Appendix
