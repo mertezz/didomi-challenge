@@ -2,7 +2,6 @@ with stg as (
     select *
     from {{ ref('stg_country') }}
 )
-
 select
     -- Surrogate key
     {{ dbt_utils.generate_surrogate_key(['code']) }} country_sk,
@@ -22,7 +21,7 @@ select
 
     -- Metadata
     {{ run_id() }} run_id,
-    ingest_dttm,
-    update_dttm,
+    current_timestamp ingest_dttm,
+    null update_dttm,
     origin
 from stg
