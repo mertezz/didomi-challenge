@@ -6,6 +6,54 @@ sources:
     schema: raw
 
     tables:
+      - name: events
+        description: Raw events data collected from Didomi SDKs and APIs. Each record represents a tracked event such as consent interaction, page view, or UI action. Dataset includes event metadata and user context.
+        columns:
+          - name: "EVENT_ID"
+            description: Unique identifier for each event (UUID).
+            tests: [ unique, not_null ]
+          - name: "USER_ID"
+            description: User identifier.
+          - name: "TYPE"
+            description: Type of event. Common values (consent.asked, consent.given, pageview, ui.action).
+          - name: "RATE"
+            description: Sampling rate for the event (0.1 means 10%, 1 means 100%).
+          - name: "PARAMETERS"
+            description: JSON object with detailed event parameters. For consent events contains nested structures with purposes, vendors, and states. Often empty for pageview or ui.action events.
+          - name: "EVENT_TIME"
+            description: Timestamp when the event occurred (UTC).
+            tests: [ not_null ]
+          - name: "WINDOW_START"
+            description: Start timestamp of the aggregation time window (UTC).
+          - name: "APIKEY"
+            description: Company identifier.
+          - name: "CONSENT"
+            description: User consent status (eg., "full opt-in", "empty", "partial").
+          - name: "COUNT"
+            description: Number of aggregated events represented by this record.
+          - name: "EXPERIMENT"
+            description: Experiment or A/B test identifier (optional).
+          - name: "SDK_TYPE"
+            description: SDK type that generated the event (eg., "sdk-mobile", "sdk-web").
+          - name: "DOMAIN"
+            description: Domain where the event occurred (eg., "service1.org").
+          - name: "DEPLOYMENT_ID"
+            description: Deployment identifier (optional).
+          - name: "COUNTRY"
+            description: Country code(s) where the event originated (eg., ES, FR).
+          - name: "REGION"
+            description: Region code of the event origin (eg., """CM""", """MD"""). Values may include extra quotes and should be cleaned in staging.
+          - name: "BROWSER_FAMILY"
+            description: Browser or SDK family (eg., "Didomi SDK", "Chrome", "Safari").
+          - name: "DEVICE_TYPE"
+            description: Device type (eg., "smartphone", "desktop", "tablet").
+          - name: load_time
+            description: Time when the record was loaded.
+          - name: load_no
+            description: Incremental load number.
+          - name: filename
+            description: Input file name used for ingestion.
+
       - name: country_and_industry
         description: >
           Company information with industry classifications and headquarters country.
@@ -15,9 +63,9 @@ sources:
             description: Unique company identifier (primary key).
             tests: [ unique, not_null ]
           - name: "INDUSTRY_BACK"
-            description: Detailed backend industry classification (e.g., "Media & Publishers", "Gaming / Sport", "Food / Beverage / Consumer Staples").
+            description: Detailed backend industry classification (eg., "Media & Publishers", "Gaming / Sport", "Food / Beverage / Consumer Staples").
           - name: "INDUSTRY_FRONT"
-            description: Simplified frontend industry classification (e.g., "Media & Publishers", "Sport", "Gaming").
+            description: Simplified frontend industry classification (eg., "Media & Publishers", "Sport", "Gaming").
           - name: "HQ_COUNTRY"
             description: Headquarters country name.
           - name: load_time
@@ -45,7 +93,7 @@ sources:
           - name: iso_3166_2
             description: ISO 3166-2 subdivision reference
           - name: region
-            description: UN region (e.g. Europe, Asia)
+            description: UN region (eg. Europe, Asia)
           - name: sub_region
             description: UN sub-region
           - name: intermediate_region
