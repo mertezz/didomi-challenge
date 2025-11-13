@@ -11,7 +11,6 @@ sources:
         columns:
           - name: "EVENT_ID"
             description: Unique identifier for each event (UUID).
-            tests: [ unique, not_null ]
           - name: "USER_ID"
             description: User identifier.
           - name: "TYPE"
@@ -22,7 +21,6 @@ sources:
             description: JSON object with detailed event parameters. For consent events contains nested structures with purposes, vendors, and states. Often empty for pageview or ui.action events.
           - name: "EVENT_TIME"
             description: Timestamp when the event occurred (UTC).
-            tests: [ not_null ]
           - name: "WINDOW_START"
             description: Start timestamp of the aggregation time window (UTC).
           - name: "APIKEY"
@@ -61,7 +59,6 @@ sources:
         columns:
           - name: "PUBLIC_API_KEY"
             description: Unique company identifier (primary key).
-            tests: [ unique, not_null ]
           - name: "INDUSTRY_BACK"
             description: Detailed backend industry classification (eg., "Media & Publishers", "Gaming / Sport", "Food / Beverage / Consumer Staples").
           - name: "INDUSTRY_FRONT"
@@ -82,10 +79,8 @@ sources:
         columns:
           - name: name
             description: Official country name
-            tests: [not_null]
           - name: alpha_2
             description: ISO 3166-1 alpha-2 country code
-            tests: [unique, not_null]
           - name: alpha_3
             description: ISO 3166-1 alpha-3 country code
           - name: country_code

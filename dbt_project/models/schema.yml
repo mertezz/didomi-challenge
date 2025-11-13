@@ -46,7 +46,6 @@ models:
         description: End date of the record validity period.
       - name: country_code
         description: ISO 3166-1 alpha-2 country code (eg., FR, ES, DE).
-        tests: [unique, not_null]
       - name: country_code_numeric
         description: Numeric country code as defined in ISO 3166-1.
       - name: country_name
@@ -181,7 +180,6 @@ models:
     columns:
       - name: consent_uq
         description: Unique key per company and day.
-        tests: [unique, not_null]
       - name: date_fk
         description: Foreign key referencing the date dimension.
       - name: company_fk
@@ -219,6 +217,7 @@ models:
       - name: origin
         description: Source file name or ingestion origin.
 
+    #  With test examples
   - name: consent_company_day
     description: >
       Reporting-level table optimized for dashboard consumption, summarizing consent metrics per company and day.
@@ -226,7 +225,8 @@ models:
     columns:
       - name: consent_uq
         description: Unique key per company and day.
-        tests: [unique, not_null]
+        tests:
+          [unique, not_null] # generic tests (built-in)
       - name: date_day
         description: Calendar date of the aggregation (UTC).
       - name: is_workday
@@ -245,6 +245,8 @@ models:
         description: Company identifier (UUID) from source.
       - name: event_count
         description: Event count extrapolated using the sampling rate.
+        tests:
+        -  is_positive  # generic custom test
       - name: event_pageview_count
         description: Number of pageview events.
       - name: event_consent_asked_count

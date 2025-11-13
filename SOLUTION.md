@@ -112,6 +112,13 @@ TODO:
 --  dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
 
 
+RELOAD :  dbt run -s +consent_company_day --vars '{"start_date": "2025-09-05", "end_date": "2025-09-06"}'
+-- Define daily load interval (inclusive) 
+-- default: yesterday → today, overridable via --vars
+
+dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
+
+
 #### Data checks
 Data checks ... several types
 
@@ -248,6 +255,8 @@ windowing function despite being powerful can be also resouce heavy. For calcula
 For developing the solution locally additional system parameters are needed before running the solution: 
 -  export RUN_MODE=local
 -  export DBT_TARGET=local 
+
+add sentence about semantic layer options..
 
 ## Appendix
 ### Possible next actions

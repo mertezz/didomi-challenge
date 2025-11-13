@@ -5,6 +5,8 @@ config-version: 2
 profile: 'interview_project'
 
 model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
 seed-paths: ["seeds"]
 target-path: "target"
 clean-targets:
