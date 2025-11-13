@@ -29,7 +29,7 @@ with raw as (
         "SDK_TYPE" sdk_type,
         "DOMAIN" domain,
         "DEPLOYMENT_ID" deployment_id,
-        "COUNTRY" country,
+        "COUNTRY" country_code,
         "REGION" region,
         "BROWSER_FAMILY" browser_family,
         "DEVICE_TYPE" device_type,
@@ -43,7 +43,7 @@ select
     -- Keys
     {{ dbt_utils.generate_surrogate_key(['event_id','event_time::date']) }} event_uq,
     {{ dbt_utils.generate_surrogate_key(['apikey']) }} company_fk,
-    {{ dbt_utils.generate_surrogate_key(['country']) }} country_fk,
+    {{ dbt_utils.generate_surrogate_key(['country_code']) }} country_fk,
     {{ dbt_utils.generate_surrogate_key(["event_time::date"]) }} date_fk,
 
     -- Attributes (degenerative dimensions)
@@ -59,7 +59,7 @@ select
     parameters,
     sdk_type,
     domain domain_name,
-    btrim(country, '"') country,
+    btrim(country_code, '"') country_code,
     btrim(region, '"') region_code,
     browser_family,
     device_type,

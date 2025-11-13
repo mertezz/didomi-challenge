@@ -38,7 +38,7 @@
     parameters,
     sdk_type,
     domain_name,
-    country,
+    country_code,
     region_code,
     browser_family,
     device_type,

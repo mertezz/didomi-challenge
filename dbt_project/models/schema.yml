@@ -1,0 +1,273 @@
+version: 2
+
+models:
+  - name: dim_company
+    description: >
+        Dimension containing company reference data with industry classifications and headquarters country.
+        Each record represents a single company. 
+        No historical tracking applied in this challenge, but validity fields are included for consistency.
+        Grain: one record per company.
+    columns:
+    - name: company_sk
+      description: Surrogate key.
+    - name: valid_from
+      description: Start date of the record validity period.
+    - name: valid_to
+      description: End date of the record validity period.
+    - name: company_id
+      description: Company identifier (UUID) from source.
+    - name: industry_back
+      description: Detailed backend industry classification (eg., "Media & Publishers", "Gaming / Sport", "Food / Beverage / Consumer Staples").
+    - name: industry_front
+      description: Simplified frontend industry classification (eg., "Media & Publishers", "Sport", "Gaming").
+    - name: hq_country
+      description: Headquarters country name.
+    - name: run_id
+      description: dbt execution identifier for lineage tracking.
+    - name: ingest_dttm
+      description: Timestamp when the record was ingested.
+    - name: update_dttm
+      description: Timestamp when the record was last updated.
+    - name: origin
+      description: Source file name or ingestion origin.
+
+  - name: dim_country
+    description: >
+      Dimension table containing standardized country reference data with regional classifications.
+      No historical tracking applied in this challenge, but validity fields are included for consistency.
+      Source: https://github.com/lukes/ISO-3166-Countries-with-Regional-Codes
+      Grain: one record per country.
+    columns:
+      - name: country_sk
+        description: Surrogate key.
+      - name: valid_from
+        description: Start date of the record validity period.
+      - name: valid_to
+        description: End date of the record validity period.
+      - name: country_code
+        description: ISO 3166-1 alpha-2 country code (eg., FR, ES, DE).
+        tests: [unique, not_null]
+      - name: country_code_numeric
+        description: Numeric country code as defined in ISO 3166-1.
+      - name: country_name
+        description: Official country name as defined in ISO 3166.
+      - name: region
+        description: UN region classification (eg., Europe, Asia).
+      - name: subregion
+        description: UN sub-region classification (eg., Western Europe, Southern Europe).
+      - name: run_id
+        description: dbt execution identifier for lineage tracking.
+      - name: ingest_dttm
+        description: Timestamp when the record was ingested.
+      - name: update_dttm
+        description: Timestamp when the record was last updated.
+      - name: origin
+        description: Source file name or ingestion origin.
+
+  - name: dim_date
+    description: >
+      Date dimension providing calendar attributes and workday indicators for analytical use.
+      Grain: one record per calendar day.
+    columns:
+      - name: date_sk
+        description: Surrogate key.
+      - name: valid_from
+        description: Start date of the record validity period.
+      - name: valid_to
+        description: End date of the record validity period.
+      - name: date_day
+        description: Calendar date represented by the record (YYYY-MM-DD).
+      - name: year
+        description: Calendar year.
+      - name: quarter
+        description: Calendar quarter number (1–4).
+      - name: month
+        description: Calendar month number (1–12).
+      - name: week_no
+        description: ISO week number (1–53).
+      - name: day_of_week
+        description: Numeric representation of the day in the week (1=Monday, 7=Sunday).
+      - name: day_of_year
+        description: Numeric representation of the day in the year (1–365 or 366 in leap years).
+      - name: day_name
+        description: Full name of the weekday (eg., Monday, Tuesday).
+      - name: month_name
+        description: Full name of the month (eg., January, February).
+      - name: week_start
+        description: Date of the first day of the week.
+      - name: week_end
+        description: Date of the last day of the week.
+      - name: month_start
+        description: Date of the first day of the month.
+      - name: month_end
+        description: Date of the last day of the month.
+      - name: is_workday
+        description: Boolean indicator (Y/N) specifying whether the date is a standard working day.
+      - name: is_weekend
+        description: Boolean indicator (Y/N) specifying whether the date falls on a weekend.
+      - name: run_id
+        description: dbt execution identifier for lineage tracking.
+      - name: ingest_dttm
+        description: Timestamp when the record was ingested.
+      - name: update_dttm
+        description: Timestamp when the record was last updated.
+      - name: origin
+        description: Source file name or ingestion origin.
+  
+  
+  - name: fct_event
+    description: >
+      Transactional fact capturing all user- and consent-related events collected from Didomi SDKs and APIs.
+      Each record represents a single tracked event (the lowest level of granularity).
+      Includes both behavioral (pageview, ui.action) and consent interaction events (consent.asked, consent.given).
+      Grain: one record per event.
+    columns:
+      - name: event_uq
+        description: Unique key for the event, derived from the event_id.
+      - name: company_fk
+        description: Foreign key referencing the company dimension.
+      - name: country_fk
+        description: Foreign key referencing the country dimension.
+      - name: date_fk
+        description: Foreign key referencing the date dimension.
+      - name: event_id
+        description: Event identifier (UUID) from source.
+      - name: user_id
+        description: Unique user identifier within the Didomi dataset.
+      - name: company_id
+        description: Company identifier (UUID) from source.
+      - name: deployment_id
+        description: Identifier of the deployed Didomi configuration (banner or SDK deployment).
+      - name: event_dttm
+        description: Timestamp when the event occurred (UTC).
+      - name: event_type
+        description: Type of event. Common values include consent.given, consent.asked, pageview, ui.action.
+      - name: consent_status
+        description: User consent status at the time of the event (eg., full opt-in, empty, partial).
+      - name: rate
+        description: Sampling rate used by the SDK (0.1 means 10%, 1 means 100% of events recorded).
+      - name: parameters
+        description: JSON object containing event-specific metadata (purposes, vendors, states, etc.).
+      - name: sdk_type
+        description: SDK type used to generate the event (eg., sdk-web, sdk-mobile).
+      - name: domain_name
+        description: Domain where the event occurred.
+      - name: country_code
+        description: Country code of the event origin.
+      - name: region_code
+        description: Regional subdivision code.
+      - name: browser_family
+        description: Browser or SDK family (eg., Didomi SDK, Chrome, Safari).
+      - name: device_type
+        description: Device type (eg., smartphone, desktop, tablet).
+      - name: sample_count
+        description: Original sample count from SDK aggregation.
+      - name: event_count
+        description: Event count extrapolated using the sampling rate.
+      - name: run_id
+        description: dbt execution identifier.
+      - name: ingest_dttm
+        description: Timestamp when the record was ingested.
+      - name: update_dttm
+        description: Timestamp when the record was last updated.
+      - name: origin
+        description: Source file name or ingestion origin.
+
+  - name: fct_consent
+    description: >
+      Aggregated fact table containing consent metrics per company and day.
+      Includes counts of different event types and consent statuses.
+      Grain: one record per company per day.
+    columns:
+      - name: consent_uq
+        description: Unique key per company and day.
+        tests: [unique, not_null]
+      - name: date_fk
+        description: Foreign key referencing the date dimension.
+      - name: company_fk
+        description: Foreign key referencing the company dimension.
+      - name: company_id
+        description: Company identifier (UUID) from source.
+      - name: event_dt
+        description: Aggregation date representing all events recorded for a company on that day (UTC).
+      - name: event_count
+        description: Event count extrapolated using the sampling rate.
+      - name: event_pageview_count
+        description: Number of pageview events.
+      - name: event_consent_asked_count
+        description: Number of consent.asked events.
+      - name: event_consent_given_count
+        description: Number of consent.given events.
+      - name: event_ui_action_count
+        description: Number of ui.action events.
+      - name: consent_given_full_opt_in_count
+        description: Number of consent.given events with consent_status = full opt-in.
+      - name: consent_given_opt_out_count
+        description: Number of consent.given events with consent_status = opt-out.
+      - name: consent_given_partial_opt_in_count
+        description: Number of consent.given events with consent_status = partial opt-in.
+      - name: consent_given_empty_count
+        description: Number of consent.given events with consent_status = empty.
+      - name: consent_conversion_rate
+        description: Ratio of consent.given to consent.asked events, expressed as a decimal (0–1).
+      - name: run_id
+        description: dbt execution identifier.
+      - name: ingest_dttm
+        description: Timestamp when the record was ingested.
+      - name: update_dttm
+        description: Timestamp when the record was last updated.
+      - name: origin
+        description: Source file name or ingestion origin.
+
+  - name: consent_company_day
+    description: >
+      Reporting-level table optimized for dashboard consumption, summarizing consent metrics per company and day.
+      Grain: one record per company per day.
+    columns:
+      - name: consent_uq
+        description: Unique key per company and day.
+        tests: [unique, not_null]
+      - name: date_day
+        description: Calendar date of the aggregation (UTC).
+      - name: is_workday
+        description: Indicator whether the date is a workday.
+      - name: year
+        description: Calendar year.
+      - name: month
+        description: Calendar month number.
+      - name: week_no
+        description: ISO week number.
+      - name: industry_front
+        description: High-level industry classification of the company.
+      - name: hq_country
+        description: Company headquarters country.
+      - name: company_id
+        description: Company identifier (UUID) from source.
+      - name: event_count
+        description: Event count extrapolated using the sampling rate.
+      - name: event_pageview_count
+        description: Number of pageview events.
+      - name: event_consent_asked_count
+        description: Number of consent.asked events.
+      - name: event_consent_given_count
+        description: Number of consent.given events.
+      - name: event_ui_action_count
+        description: Number of ui.action events.
+      - name: consent_given_full_opt_in_count
+        description: Number of consent.given events with consent_status = full opt-in.
+      - name: consent_given_opt_out_count
+        description: Number of consent.given events with consent_status = opt-out.
+      - name: consent_given_partial_opt_in_count
+        description: Number of consent.given events with consent_status = partial opt-in.
+      - name: consent_given_empty_count
+        description: Number of consent.given events with consent_status = empty.
+      - name: consent_conversion_rate
+        description: Ratio of consent.given to consent.asked events, expressed as a decimal (0–1).
+      - name: run_id
+        description: dbt execution identifier.
+      - name: ingest_dttm
+        description: Timestamp when the record was ingested.
+      - name: update_dttm
+        description: Timestamp when the record was last updated.
+      - name: origin
+        description: Source file name or ingestion origin.
