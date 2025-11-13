@@ -1,0 +1,73 @@
+{{
+  config(
+    materialized            = 'incremental',
+    incremental_strategy    = 'delete+insert',
+    on_schema_change        = 'append_new_columns',
+    tags                    = ['daily', 'cm']
+  )
+}}
+
+-- Define inclusive daily load window (default: yesterday → today, overridable via --vars)
+{% set start_date = var('start_date', (modules.datetime.date.today() - modules.datetime.timedelta(days=1)).isoformat()) %}
+{% set end_date   = var('end_date', modules.datetime.date.today().isoformat()) %}
+
+with raw as (
+    select
+        "EVENT_ID" event_id,
+        "USER_ID" user_id,
+        "TYPE" type,
+        "RATE" rate,
+        "PARAMETERS" parameters,
+        "EVENT_TIME" event_time,
+        "WINDOW_START" window_start,
+        "APIKEY" apikey,
+        "CONSENT" consent,
+        "COUNT" count,
+        "EXPERIMENT" experiment,
+        "SDK_TYPE" sdk_type,
+        "DOMAIN" domain,
+        "DEPLOYMENT_ID" deployment_id,
+        "COUNTRY" country,
+        "REGION" region,
+        "BROWSER_FAMILY" browser_family,
+        "DEVICE_TYPE" device_type,
+        load_time,
+        load_no,
+        filename
+    from {{ source('raw', 'events') }}
+    {{ incremental_filter('"EVENT_TIME"', start_date, end_date) }}
+)
+select
+    -- Unique & foreign keys
+    {{ dbt_utils.generate_surrogate_key(['event_id','event_time::date']) }} event_uq,
+    {{ dbt_utils.generate_surrogate_key(['apikey']) }} company_fk,
+    {{ dbt_utils.generate_surrogate_key(['country']) }} country_fk,
+    {{ dbt_utils.generate_surrogate_key(["event_time::date"]) }} date_fk,
+
+    -- Business keys
+    event_id,
+    user_id,
+    apikey company_id,
+    deployment_id,
+
+    -- Attributes (degenerative dimensions)
+    event_time event_dttm,
+    type event_type,
+    consent consent_status,
+    rate,
+    parameters,
+    sdk_type,
+    domain domain_name,
+    btrim(country, '"') country,
+    btrim(region, '"') region_code,
+    browser_family,
+    device_type,
+    count sample_count,
+    round(count/rate) event_count, -- fail-fast if count is 0
+
+    -- Metadata
+    {{ run_id() }} run_id,
+    current_timestamp ingest_dttm,
+    null update_dttm, -- transactional facts are immutable
+    filename origin
+from raw
