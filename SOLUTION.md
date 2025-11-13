@@ -17,6 +17,11 @@ ui.action purpose changed.. ce je kaj zadodtaj..
 
 - duckdb..      
 - dotakni se semantci models (v dbt or snowfalke)
+- CHECK how it works adding a field.. scham change
+- test
+  - data checke
+  - custom tests
+  - unit test..
 
 
 
@@ -35,6 +40,9 @@ ui.action purpose changed.. ce je kaj zadodtaj..
 -----
 todo: dodaj quality iz vprasanj mail
 experiment column left out because it was empty. 
+
+`fct_event` : Event caount values were rounded using round() to remove floating-point noise and ensure consistent value grouping for analysis and aggregation.
+columns, normalised.. 
 
 
 
@@ -86,10 +94,23 @@ Materialisaiton are crucial for efficient ... For simplicy and easier maintenace
 
 Incremantal materialisation can support different strategies. In the project there are two examples of such strategies:
 - `delete+insert` - suitable for staging tables
--  `merge`   - TODO
 - `microbatch` - suitable for large dataset and iterative reloads  
 
-Both are dbt's built in strategies that are implemented with an additional step. While loading the target an additional temporary table is build from which then the load reads and inserts the data into the target. Unfortunatelly this intermediate step cannot be skipped so the only way to improve is to potentially try to create your own materialisation (which comes with a maintenance overhead).
+Both are dbt's built in strategies that are implemented with an additional step (dbt managed _temp tables). While loading the target an additional temporary table is build from which then the load reads and inserts the data into the target. Unfortunatelly this intermediate step cannot be skipped so the only way to improve is to potentially try to create your own materialisation type (which comes with a maintenance overhead).
+
+
+TODO: 
+-- DELETE+INSERT strategy
+-- The incremental stage table drives the load (defines the period, batch and keys for delete+insert)
+-- Unique key is used to first delete records from the target fact. This enables backfills of the desired period
+-- Target records are deleted based on distinct keys from the stage table
+-- Full column scan of target keys is required for deletion
+-- Incremental mode creates an additional _temp table from the stage
+-- Event time filters are applied only in the stage table, here are not needed
+-- Additional performance improvements could be achieved with dbt predicates and microbatching
+-- Example:
+--  dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
+
 
 #### Data checks
 Data checks ... several types
@@ -98,15 +119,29 @@ Data checks ... several types
 Unit test .. 
 
 
-#### Tags 
-scheduling + graph operations
+#### Tags  
+Tags in this project are primarily used to support external scheduling, simplify production operations, and enable cost tracking across subject areas.  
+
+Example: running an incremental load for the entire `consent-management` domain:  
+```bash
+dbt run -s tag:cm
+````
 
 #### Loads
 full-refresh:
 incremental: different strategies.. mention microbatches for large dataset.. also caveats..
 
 
-### Modeling 
+### Modeling  
+The solution is designed around two modelling approaches:
+
+1. **Dimensional modelling**, intended for standardised, enterprise-wide adoption. This approach supports business processes via fact tables and provides context through dimension tables. The target schema is `mart`.  In the assignment one subject area was covered: `consent-management`.
+   
+    
+    TODO: Add bus matrix
+
+2. **Wide-table modelling**, used exclusively for specific dashboards and performance-driven analyses. This is implemented in schema `report`, and is not meant to be shared broadly across teams.
+
 
 #### Naming standards
 The project follows consistent naming conventions aligned with common data warehousing practices.
@@ -122,7 +157,7 @@ Table types
 - `dim_` — dimension tables.  
 - `fct_` — transactional fact tables describing business process performance.  
 
-Attribute suffix conventions
+Attribute conventions
 - `_sk` — surrogate key.  
 - `_fk` — foreign key.  
 - `_uq` — unique key made by combining several fields. Mainly used in fact tables to simplify maintenance.
@@ -131,8 +166,11 @@ Attribute suffix conventions
 - `_no` — numeric business identifiers (eg., invoice_no).  
 - `_flag` / `_ind` — boolean or indicator fields (Y/N).  
 - `_dttm` — timestamp field.  
-- `_dt` — date type field.  
-- `valid_from`, `valid_to` — validity columns for dimensions (non-historical in this challenge, but included for consistency).  
+- `_dt` — date type field.
+- `valid_from`, `valid_to` — validity columns for dimensions (non-historical in this challenge, but included for consistency).
+- `_count` - numeric count of events, records, or actions
+- `lag_` - time difference between milestones
+
 
 Metadata columns
 - `run_id` — dbt execution identifier for lineage and troubleshooting.  
@@ -145,12 +183,15 @@ When creating surrogate keys and defining relationships between facts and dimens
 - **Early-binding approach:**  
   in traditional dwh design, surrogate keys (sk) are generated within dimensions as independent, sometimes random unique identifiers. When loading fact tables, fact data is joined to dimensions on the business key (and time fields for scd handling) to fetch the correct sk.  
   The resulting fact record points directly to a unique, time-specific dimension row.  
-  *Drawback:* facts depend on preloaded dimensions, increasing etl time, complexity and coupling.
+  *Drawback:* facts depend on preloaded dimensions, increasing processing time, complexity and coupling.
 
 - **Late-binding approach:**  
-  Surrogate and foreign keys are derived on the fly from business keys and a time field, avoiding joins during fact preparation.  
-  This enables independent loading of facts and dimensions and simplifies pipelines.  
-  *Drawback:* At query time, consumers must include a time-based filter to align historical context, increasing risk of duplicated data and slower joins.
+  In this approach, fact table foreign keys do not reference a unique dimension row when history is tracked (SCD dimension).  
+  Surrogate keys in these facts are derived directly from the business key, without joining to the dimension during loading.  
+  Historical context is resolved at query time, when users apply time-based filters to pick the valid dimension record.  
+  *Drawback:* This approach simplifies loading and decouples facts from dimensions, but shifts responsibility to consumers.  
+  If time filters are misapplied, it can cause incorrect results which represent a major risk.
+
 
 In the prototype challenge, a **late-binding** strategy was applied for flexibility and simplicity. For production environments, a hybrid or **early-binding** approach is advisable to ensure data stability and reduce risk for less experienced users.
 
@@ -181,6 +222,10 @@ Each dimension also includes the default row to handle unmatched fact records. D
 #### Facts
 TOOD- should describe processes (check..)
 
+granularity:
+    fct_event: event
+    fct_consent: company by day
+
 #### Time standardization (UTC)
 Timestamps used for linking facts and dimensions are standardized to UTC to ensure consistent across systems.
 End-user reporting or presentation layers may apply local time zone conversions as needed. In this challenge, such conversions were not implemented.
@@ -190,7 +235,19 @@ End-user reporting or presentation layers may apply local time zone conversions 
 ## Key Insights
 TODO
    - 2-3 interesting findings from the metrics you calculated about consent behavior, company performance, or other patterns in the data
+------- 
+   - TODO
+Quite a low consent conversion rate, the top aprox 27% 
 
+![img.png](img.png)
+
+## Caveats & notes
+TODO:
+windowing function despite being powerful can be also resouce heavy. For calculating the average time-to-consent metric it is advisable that this time is direcly calculated in the SDK which would reduce the partition scan operation for matching the `consent.asked` and `consent.given` event.
+
+For developing the solution locally additional system parameters are needed before running the solution: 
+-  export RUN_MODE=local
+-  export DBT_TARGET=local 
 
 ## Appendix
 ### Possible next actions
