@@ -27,3 +27,6 @@ models:
 
     mart:
       schema: mart
+
+    report:
+      schema: report
