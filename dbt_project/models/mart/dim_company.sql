@@ -2,7 +2,6 @@ with stg as (
     select *
     from {{ ref('stg_company') }}
 )
-
 select
     -- Surrogate key
     {{ dbt_utils.generate_surrogate_key(['company_id']) }} company_sk,
