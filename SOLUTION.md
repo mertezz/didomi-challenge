@@ -33,6 +33,17 @@ ui.action purpose changed.. ce je kaj zadodtaj..
    - Step-by-step commands to run your data ingestion script(s)
    - Step-by-step commands to run your dbt models
    - (Optional) Example queries to verify results
+   - 
+----------- TODO write desc..
+
+```bash 
+make build
+make load
+make deps
+make seed
+make dbt-run
+
+```
 
 ## Data Quality Observations
    - What data quality issues did you encounter?
