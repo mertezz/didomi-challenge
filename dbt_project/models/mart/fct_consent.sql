@@ -13,11 +13,16 @@
 }}
 
 select
+    -- Keys
     consent_uq,
     date_fk,
     company_fk,
+
+    -- Attributes
     company_id,
     event_dt,
+
+    -- Metrics
     event_count,
     event_pageview_count,
     event_consent_asked_count,
@@ -28,6 +33,8 @@ select
     consent_given_partial_opt_in_count,
     consent_given_empty_count,
     consent_conversion_rate,
+
+    -- Metadata
     run_id,
     ingest_dttm,
     update_dttm,

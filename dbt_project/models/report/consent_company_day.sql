@@ -1,5 +1,28 @@
+{{
+  config(
+    materialized            = 'incremental',
+    unique_key              = ['consent_uq'],
+    incremental_strategy    = 'delete+insert',
+    on_schema_change        = 'append_new_columns',
+    tags                    = ['daily', 'cm']
+  )
+}}
+
+-- Define daily load interval (inclusive)
+-- default: yesterday → today, overridable via --vars
+{% set start_date = var('start_date', (modules.datetime.date.today() - modules.datetime.timedelta(days=1)).isoformat()) %}
+{% set end_date   = var('end_date', modules.datetime.date.today().isoformat()) %}
+
+with consents as (
+    select
+        *
+    from {{ref('fct_consent')}} cons
+    {{ incremental_filter('event_dt', start_date, end_date) }}
+)
 select
-    -- Date
+    cons.consent_uq,
+
+   -- Date
     d.date_day,
     d.is_workday,
     d.year,
@@ -21,8 +44,14 @@ select
     cons.consent_given_opt_out_count,
     cons.consent_given_partial_opt_in_count,
     cons.consent_given_empty_count,
-    cons.consent_conversion_rate
-from {{ref('fct_consent')}} cons
+    cons.consent_conversion_rate,
+
+    -- Metadata
+    {{ run_id() }} run_id,
+    current_timestamp ingest_dttm,
+    null update_dttm,
+    'fct_consent' origin
+from consents cons
 left outer join {{ref('dim_company')}} comp on cons.company_fk = comp.company_sk
 left outer join {{ref('dim_date')}} d on cons.date_fk = d.date_sk
 where 1=1

@@ -1,13 +1,15 @@
 {{
   config(
     materialized            = 'incremental',
+    unique_key              = ['event_uq'],
     incremental_strategy    = 'delete+insert',
     on_schema_change        = 'append_new_columns',
     tags                    = ['daily', 'cm']
   )
 }}
 
--- Define inclusive daily load window (default: yesterday → today, overridable via --vars)
+-- Define daily load interval (inclusive)
+-- default: yesterday → today, overridable via --vars
 {% set start_date = var('start_date', (modules.datetime.date.today() - modules.datetime.timedelta(days=1)).isoformat()) %}
 {% set end_date   = var('end_date', modules.datetime.date.today().isoformat()) %}
 
@@ -38,19 +40,18 @@ with raw as (
     {{ incremental_filter('"EVENT_TIME"', start_date, end_date) }}
 )
 select
-    -- Unique & foreign keys
+    -- Keys
     {{ dbt_utils.generate_surrogate_key(['event_id','event_time::date']) }} event_uq,
     {{ dbt_utils.generate_surrogate_key(['apikey']) }} company_fk,
     {{ dbt_utils.generate_surrogate_key(['country']) }} country_fk,
     {{ dbt_utils.generate_surrogate_key(["event_time::date"]) }} date_fk,
 
-    -- Business keys
+    -- Attributes (degenerative dimensions)
     event_id,
     user_id,
     apikey company_id,
     deployment_id,
 
-    -- Attributes (degenerative dimensions)
     event_time event_dttm,
     type event_type,
     consent consent_status,
@@ -62,6 +63,8 @@ select
     btrim(region, '"') region_code,
     browser_family,
     device_type,
+
+    -- Metrics
     count sample_count,
     round(count/rate) event_count, -- fail-fast if count is 0
 

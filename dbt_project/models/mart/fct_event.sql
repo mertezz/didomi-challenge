@@ -20,10 +20,13 @@
 }}
 
  select
+    -- Keys
     event_uq,
     company_fk,
     country_fk,
     date_fk,
+
+    -- Attributes
     event_id,
     user_id,
     company_id,
@@ -39,8 +42,12 @@
     region_code,
     browser_family,
     device_type,
+
+    -- Metrics
     sample_count,
     event_count,
+
+    -- Metadaata
     run_id,
     ingest_dttm,
     update_dttm,

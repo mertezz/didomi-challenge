@@ -1,13 +1,15 @@
 {{
   config(
     materialized            = 'incremental',
+    unique_key              = ['consent_uq'],
     incremental_strategy    = 'delete+insert',
     on_schema_change        = 'append_new_columns',
     tags                    = ['daily', 'cm']
   )
 }}
 
--- Define inclusive daily load window (default: yesterday → today, overridable via --vars)
+-- Define daily load interval (inclusive)
+-- default: yesterday → today, overridable via --vars
 {% set start_date = var('start_date', (modules.datetime.date.today() - modules.datetime.timedelta(days=1)).isoformat()) %}
 {% set end_date   = var('end_date', modules.datetime.date.today().isoformat()) %}
 
@@ -59,12 +61,12 @@ with raw as (
    from totals
 )
 select
-    -- Unique & foreign keys
+    -- Keys
     {{ dbt_utils.generate_surrogate_key(['company_id', 'event_dt']) }} consent_uq,
     {{ dbt_utils.generate_surrogate_key(['company_id']) }} company_fk,
     {{ dbt_utils.generate_surrogate_key(['event_dt']) }} date_fk,
 
-    -- Business keys
+    -- Attributes
     company_id,
     event_dt,
 
