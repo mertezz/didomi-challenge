@@ -23,7 +23,7 @@ dbt-run:
 	docker-compose exec analytics-env bash -c "cd dbt_project && dbt run"
 
 dbt-debug:
-	docker-compose exec analytics-env bash -c "cd dbt_project && dbt debug"
+	docker-compose exec analytics-env bash -c "cd dbt_project && dbt run --debug"
 
 
 
