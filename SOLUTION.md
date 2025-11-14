@@ -73,6 +73,9 @@ columns, normalised..
    - Your dbt model organization approach
    - Any trade-offs or important choices you made
    - -----------------
+
+todo: add stages
+
 environemnts: introduciton of a new docker-compose variable to support both local development and container runs (RUN_MODE). As it was only one variable introducition of docker-compose profiles was not deemed necesary
 local development:
 - export DBT_TARGET=local 
@@ -231,12 +234,13 @@ Metadata columns
 
 #### Surrogate keys and their role
 When creating surrogate keys and defining relationships between facts and dimensions, several approaches exist. Two of them are outlined below:
-- **Early-binding approach:**  
+- Early-binding approach:  
   in traditional dwh design, surrogate keys (sk) are generated within dimensions as independent, sometimes random unique identifiers. When loading fact tables, fact data is joined to dimensions on the business key (and time fields for scd handling) to fetch the correct sk.  
   The resulting fact record points directly to a unique, time-specific dimension row.  
   *Drawback:* facts depend on preloaded dimensions, increasing processing time, complexity and coupling.
 
-- **Late-binding approach:**  
+
+- Late-binding approach:  
   In this approach, fact table foreign keys do not reference a unique dimension row when history is tracked (SCD dimension).  
   Surrogate keys in these facts are derived directly from the business key, without joining to the dimension during loading.  
   Historical context is resolved at query time, when users apply time-based filters to pick the valid dimension record.  
@@ -244,7 +248,7 @@ When creating surrogate keys and defining relationships between facts and dimens
   If time filters are misapplied, it can cause incorrect results which represent a major risk.
 
 
-In the prototype challenge, a **late-binding** strategy was applied for flexibility and simplicity. For production environments, a hybrid or **early-binding** approach is advisable to ensure data stability and reduce risk for less experienced users.
+In the prototype challenge, a **late-binding** strategy was applied for flexibility and simplicity. For production environments, a hybrid or early-binding approach is advisable to ensure data stability and reduce risk for less experienced users.
 
 #### Dimensions
 Following Kimball dimensional modeling principles, several potential dimensions were considered to be created or derived from the provided raw event dataset: `dim_device`, `dim_event_type`, `dim_consent_status`, `dim_experiment`, `dim_domain`, `dim_deployment`, `dim_user`, `dim_vendor`,..  
@@ -252,7 +256,7 @@ Following Kimball dimensional modeling principles, several potential dimensions 
 These dimensions were **not implemented** as separate entities. Instead, their attributes were kept as **degenerate dimensions** within the fact table (stored directly in `fct_event` without foreign keys).
 
 This decisions was taken because:
-- Each of these entities currently contains only one or two attributes, which do not provide descriptive context that would improve understanding of the analysed data.  
+- Each of these entities currently contains only one or two attributes, which would not justify the overhead of creating a new dimension.  
 - Within the assignment scope, no additional descriptive or lookup attributes (eg., labels, hierarchies, textual descriptions) were identified as necessary to include.
 - Avoiding unnecessary joins improves model simplicity and query performance.  
 
@@ -271,33 +275,35 @@ As part of the assignment the following dimensions were implemented:
 Each dimension also includes the default row to handle unmatched fact records. Dimensions currently do not track any history.
 
 #### Facts
-TOOD- should describe processes (check..)
+Fact tables capture business processes that are relevant to the organisation. Two fact tables were created:
 
-- Grain:
-    fct_event: event
-    fct_consent: company by day
+`fct_event`  
+- Transactional fact capturing all user and consent-related events collected from Didomi SDKs and APIs. Each record represents a single tracked event (the lowest granularity). Includes both behavioural events (`pageview`, `ui.action`) and consent interaction events (`consent.asked`, `consent.given`).  
+- Grain: one record per event  
+  - This grain was chosen because the table serves as an entry point not only for consent-related analytics but also for other types of product analytics that may require event-level granularity.
+  
+`fct_consent`  
+- Aggregated fact table containing consent metrics per company per day. It includes counts of different event types and consent statuses.  
+- Grain: one record per company per day  
+  - A daily grain was chosen primarily to aggregate the large volume of consent data. For more granular event-level analysis, the grain would need to be reduced to one record per given consent.
 
-- Loading concept
+Fact loading concept (incremental):
+- The stage table drives the load (it defines the period, batch, and keys for the `delete+insert` process).  
+- A unique key is used to delete existing records from the target fact, enabling backfills for any defined period.  
+- Target records are deleted based on distinct keys from the stage table.  
+- This requires a full column scan of the target unique key column during deletion.  
+- In incremental mode, dbt creates an additional `_temp` table populated from the stage.  
+- Event-time filters are applied only when loading the stage table — the fact load itself does not need them.  
+- Additional performance improvements could be achieved using dbt predicates or microbatching.  
+- Both facts support reloads for any user-provided period.
 
-TODO: 
--- DELETE+INSERT strategy
--- The incremental stage table drives the load (defines the period, batch and keys for delete+insert)
--- Unique key is used to first delete records from the target fact. This enables backfills of the desired period
--- Target records are deleted based on distinct keys from the stage table
--- Full column scan of target keys is required for deletion
--- Incremental mode creates an additional _temp table from the stage
--- Event time filters are applied only in the stage table, here are not needed
--- Additional performance improvements could be achieved with dbt predicates and microbatching
--- Example:
---  dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
+Reload example:
 
+```bash
+dbt run -s +fct_consent --vars '{"start_date": "2025-09-05", "end_date": "2025-09-06"}'
+```
 
-RELOAD :  dbt run -s +consent_company_day --vars '{"start_date": "2025-09-05", "end_date": "2025-09-06"}'
--- Define daily load interval (inclusive) 
--- default: yesterday → today, overridable via --vars
-
-dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
-
+An additional reporitng table was created to fullfill the challenge metrics requirement (`report.consent_company_day`)
 
 #### Time standardization (UTC)
 Timestamps used for linking facts and dimensions are standardized to UTC to ensure consistent across systems.
