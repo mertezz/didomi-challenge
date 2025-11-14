@@ -24,6 +24,8 @@ services:
       - RUN_MODE=dev
     volumes:
       - .:/app
+    ports:
+      - "8080:8080"
     working_dir: /app
     tty: true
     command: ["tail", "-f", "/dev/null"]

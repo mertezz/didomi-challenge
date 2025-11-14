@@ -1,60 +1,77 @@
 # todo
-ui.action purpose changed.. ce je kaj zadodtaj..
 
 
 --- finindgs (pa sej ne vem ce so vsi)
 - event data -> user can create multiple consents whether be it because of changes in purpose or allowed vendors
 - TODO ANALYSIS thorgouht.. use based..
-- dbt
-  - profiles.yml was move direcly to project because we do not have muliptle profiles..
-  - seeds: countries -> https://github.com/lukes/ISO-3166-Countries-with-Regional-Codes
-  - tags (za schedule + area), 
-  - uq macro, 
-  - incremental = (today set v variablo - poglej tudi druge),
-  - on schema change dodaj.. pri incrementih
-  - data checks
-  - unit tests
+
 
 - duckdb..      
 - dotakni se semantci models (v dbt or snowfalke)
-- CHECK how it works adding a field.. scham change
-- test
-  - data checke
-  - custom tests
-  - unit test..
-
-
 
 ## Project overview
 
 ## How to Run Your Solution
 
-   - Any additional dependencies you added and why
-   - Step-by-step commands to run your data ingestion script(s)
-   - Step-by-step commands to run your dbt models
-   - (Optional) Example queries to verify results
-   - 
------------ TODO write desc..
+Introduced Python Dependencies
+- duckdb — for loader capabilities from file to PostgreSQL  
+- pyyaml — for loader configuration support
+- dbt_util — dbt helpers (eg. surrogate key generator)
 
-```bash 
-make build
-make load
-make deps
-make seed
-make dbt-run
-make dbt-test
-# make dbt-show # supported however not suitable 
+Steps to run the solution
+
+```bash
+make build      # build Docker images and start containers
+make load       # load data from input files (CSV and Parquet) into PostgreSQL
+make deps       # install dbt dependencies
+make seed       # seed reference data (dbt)
+make dbt-run    # execute all dbt transformations
+
+# Optional commands
+make dbt-test   # execute all dbt tests
+make dbt-docs   # generate and serve documentation (accessible at http://localhost:8080)
+```
+---
+JDBC Client Connection
+
+| Parameter | Value |
+|------------|--------|
+| User | `ae_interview` |
+| Password | `password` |
+| URL | `jdbc:postgresql://localhost:5432/postgres` |
+
+---
+
+Generic queries
+```sql
+select * from raw.events limit 10;
+select * from raw.country_and_industry limit 10;
+
+select * from mart.dim_company limit 10;
+select * from mart.dim_country limit 10;
+select * from mart.dim_date limit 10;
+select * from mart.fct_event limit 10;
+select * from mart.fct_consent limit 10;
+
+select * from report.consent_company_day limit 10;
 ```
 
+Quality check queries
 ```sql 
+-- Raw company event count on '2025-09-05'
+--   cnt = 64937
+select sum("COUNT" / "RATE") as cnt
+from raw.events
+where "APIKEY" = '7725cda3-efd1-440b-8cc4-f80972acee43'
+  and date("EVENT_TIME") = '2025-09-05';
 
-SQL:
-select * 
+-- Reporting table check (expected to match above result)
+--   event_count = 64937
+select event_count, *
 from report.consent_company_day
-limit 100;
+where company_id = '7725cda3-efd1-440b-8cc4-f80972acee43'
+  and date_day = '2025-09-05';
 ```
-
-
 ## Data Quality Observations
    - What data quality issues did you encounter?
    - How did you handle them?

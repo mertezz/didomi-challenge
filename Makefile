@@ -28,6 +28,9 @@ dbt-debug:
 dbt-test:
 	docker-compose exec analytics-env bash -c "cd dbt_project && dbt test"
 
+dbt-docs:
+	docker-compose exec analytics-env bash -c "cd dbt_project && dbt docs generate && dbt docs serve --host 0.0.0.0 --port 8080"
+
 dbt-show:
 	docker-compose exec analytics-env bash -c "cd dbt_project && dbt show -s consent_company_day"
 
