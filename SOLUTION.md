@@ -156,30 +156,28 @@ python loader.py \
 ### dbt
 
 #### Structure
-Project structure follows standard dbt practices, with separate folders representing data layers (raw, staging, marts, reporting). Each folder maps directly to a physical database schema, making it easy to locate corresponding tables and models.
 
-In larger organizations with several department (eg. marketing, sales, consent-management), an additional subfolder level could be introduced in the `staging` and `mart` folder. To keep a flat structure, such organizational context can also be encoded in model names (eg. `fct_cm_event`), improving table uniqueness across departments. The `raw` layer can similarly be organized by source systems when dealing with a large number of sources.
+- Project follows standard dbt structure with folders representing data layers (`raw`, `staging`, `mart`, `report`). Each folder maps directly to a physical database schema, ensuring clarity between model layers and database objects.  
 
-Schema mapping logic is customized via [generate_schema_name.sql](dbt_project/macros/generate_schema_name.sql).  
+- In larger organizations, additional subfolders can be introduced under `staging` or `mart` (eg., per department such as marketing, sales, or consent-management). To keep a flat structure, the organizational context can also be included in model names (eg., `fct_cm_event`). The `raw` layer can similarly be organized by source systems when dealing with multiple data providers.  
 
-For simplicity, `profiles.yml`, `dbt_project.yml`, and `packages.yml` are all stored in the project root.
+- Schema mapping logic is customized via [generate_schema_name.sql](dbt_project/macros/generate_schema_name.sql), achieving a direct mapping between dbt folders and corresponding database schemas.
 
-Due to small project size, all **schemas, seeds,** and **sources** are defined in single files (`schema.yml`, `seeds.yml`, `source.yml`) under `/models`.
+- Configuration files (`profiles.yml`, `dbt_project.yml`, and `packages.yml`) are stored in the project root for easier maintenance.  
+
+- Due to the small project size, all schema definitions, seeds, and sources are consolidated in single files (`schema.yml`, `seeds.yml`, `source.yml`) under `/models`.
 
 #### Macros
-Jinja templating adds flexibility but can reduce readability and maintainability. 
-Macros were used only when necessary to keep the solution simple and maintainable.  
+- Jinja templating adds flexibility but can reduce readability and maintainability. Macros were used only when necessary to keep the solution simple and maintainable.  
 
-The project reuses community packages (eg. `dbt_utils.generate_surrogate_key()`) instead of re-implementing standard utilities.
+- The project reuses community packages (eg. `dbt_utils.generate_surrogate_key()`) instead of re-implementing standard utilities.
 
 #### Materialisation
-Materialisations are crucial for efficient data processing and performance. For simplicity and easier maintenance, the default materialisation has been changed from `view` to `table`. An exception to this are fact models, where incremental materialisation is used.
-
-Incremental strategies are covered in the section [Load & backfill strategies](#load--backfill-strategies).
+- Materialisations are crucial for efficient data processing and performance. For simplicity and easier maintenance, the default materialisation has been changed from `view` to `table`. An exception to this are fact models, where incremental materialisation is used. 
+- Incremental strategies are covered in the section [Load & backfill strategies](#load--backfill-strategies).
 
 #### Data & code checks  
-Several tests were created to demonstrate dbt testing functionality.  
-They are defined both in the `schema.yml` files and in the dedicated `tests` folder.
+Several tests were created to demonstrate dbt testing functionality. They are defined both in the `schema.yml` files and in the dedicated `tests` folder.
 
 Types of tests applied in the project:  
 - Generic tests
@@ -365,16 +363,19 @@ End-user reporting or presentation layers may apply local time zone conversions 
 
 ## Key Insights
 
-- Companies show generally low consent conversion rates, with most below 10%. The top-performing companies reach around 27% conversion overall.  
-
-  ![img.png](other/company_consent.png)
-
-- Data insights:
+- General data insights:
   - 40 companies exist in the raw dataset, but only 10 generated events.  
   - The dataset covers a period from `2025-09-05` to `2025-09-10`.  
   - A notable spike in `consent.given` events occurred on `2025-09-05 01:00` (~2004 events), likely due to synthetic test data.  
 
   ![img.png](other/consent_spike.png)
+
+- Company insights
+  - Companies show generally low consent conversion rates, with most below 10%. The top-performing companies reach around 27% conversion overall.  
+
+    ![img.png](other/company_consent.png)
+
+
 
 - Industry patterns:  
   - Gaming and Beauty industries significantly outperform others, reaching 27% and 20% conversion rates respectively.  
