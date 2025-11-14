@@ -110,13 +110,18 @@ Design Goals
 - High performance, robustness, and flexibility (support for CSV, Parquet, etc.)  
 - Easy development (eg., direct Parquet file exploration)  
 
-Evaluation
-- DataFrames (Pandas/Polars) — slow for large files, cumbersome 
-- Postgres extensions (pg_parquet) — performant but less portable  
-- DuckDB — SQL based, fast, portable, supports parallel reads, direct Postgres integration
+Evaluation 
+- Dataframes
+  - Pandas — good for small/medium datasets; memory-heavy and slower on large files. 
+  - Polars — very fast, multi-threaded engine; good fit for large data, Python-friendly. 
+- Postgres extensions (eg., pg_parquet)
+  - fast but less portable; often unsupported on managed Postgres.
+- DuckDB
+  - SQL based, fast, portable, supports parallel reads, direct Postgres integration
 
 Decision
-- DuckDB was chosen for its parallel file loading, broad format support, and ability to handle both ingestion and ad-hoc data exploration without extra tools. 
+- DuckDB was chosen for its parallel file loading and broad format and integration support. 
+- It fits naturally into the SQL ecosystem, enabling both ingestion and ad-hoc data exploration without additional tools. 
 
 Concept:
 - The loader follows a load-first, clean-later approach: all data is ingested as-is before transformation. This keeps the process simple, robust and less error-prone. 
