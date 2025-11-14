@@ -1,17 +1,7 @@
-# todo
-
-
---- finindgs (pa sej ne vem ce so vsi)
-- event data -> user can create multiple consents whether be it because of changes in purpose or allowed vendors
-- TODO ANALYSIS thorgouht.. use based..
-
-
-- duckdb..      
-- dotakni se semantci models (v dbt or snowfalke)
-
 ## Project overview
+The project implements an end-to-end data pipeline for consent management analytics. It ingests multi-format event data (CSV, Parquet) using a DuckDB-based loader into Postgres, then transforms it with dbt into a dimensional data model (facts and dimensions) optimized for analysis and reporting.
 
-## How to Run Your Solution
+## How to run the solution
 
 Introduced Python Dependencies
 - duckdb — for loader capabilities from file to PostgreSQL  
@@ -72,49 +62,96 @@ from report.consent_company_day
 where company_id = '7725cda3-efd1-440b-8cc4-f80972acee43'
   and date_day = '2025-09-05';
 ```
-## Data Quality Observations
-   - What data quality issues did you encounter?
-   - How did you handle them?
------
-todo: dodaj quality iz vprasanj mail
-experiment column left out because it was empty. 
+## Data quality observations
 
-`fct_event` : Event caount values were rounded using round() to remove floating-point noise and ensure consistent value grouping for analysis and aggregation.
-columns, normalised.. 
+No quality issues were found on crucial event columns (`company_id` and `event_id`).
+
+Data issues
+- The `experiment` column was empty and therefore excluded.
+- `country_code` and `region` required trimming (eg., `"ES"` with extra quotes) to correctly match `dim_region`.
+- In `fct_event`, event count values were rounded using `round()` to remove floating-point noise and ensure consistent grouping.
+- Some companies were missing headquarters information (7 out of 40).
+
+Other issues
+  - Missing link between `consent.asked` and `consent.given`
+    - No session identifier was present to reliably match the two event types, making the metric challenging to calculate accurately.
+    - Supporting logic exists in `stg_event`, but the metric was not included in the final `fct_event`.
+
+- Non-empty consent on `consent.asked` events
+  - In 8 cases, `consent.asked` events contained consent statuses such as `full opt-in` or `opt-out`, which are expected only after a `consent.given` event and may indicate anomalies.
+
+- Empty consent on `consent.given` events
+  - In 256 cases, `consent.given` events had `empty` as the consent value, suggesting potential SDK or banner issues.
+  - It was explained that in some jurisdictions (eg., the US), this may still represent a valid scenario.
+
+- Inconsistent geo/device/deployment switching
+  - The same `user_id` appears across different countries, regions, devices/browsers and deployment_id configurations within short time windows (eg., ~30 minutes between New Zealand and the United States).
+
+![issue_switching.png](other/issue_switching.png)
 
 
+## Architecture decisions
+### Data architecture
+
+The project follows a typical DWH layered structure consisting of:  
+
+- `raw` — untransformed source data loaded *as-is* from operational systems or files.  
+- `staging` — serving as an ephemeral preparation layer for modeling.  
+- `mart` —  curated dimensional models (facts and dimensions) optimized for analytical workloads.  
+- `report` — contains datasets tailored to specific dashboards needs; these tables are not intended for enterprise-wide sharing.
+
+The `raw` layer is designed to retains the full source history, allowing reprocessing in case of data-quality or transformation issues without re-extracting data from sources.
+
+### File loader
 
 
-## Architecture Decisions
-   - Your data ingestion strategy and rationale
-   - Your dbt model organization approach
-   - Any trade-offs or important choices you made
-   - -----------------
+Design Goals
+- Simple design
+- High performance, robustness, and flexibility (support for CSV, Parquet, etc.)  
+- Easy development (eg., direct Parquet file exploration)  
 
-todo: add stages
+Evaluation
+- DataFrames (Pandas/Polars) — slow for large files, cumbersome 
+- Postgres extensions (pg_parquet) — performant but less portable  
+- DuckDB — SQL based, fast, portable, supports parallel reads, direct Postgres integration
 
-environemnts: introduciton of a new docker-compose variable to support both local development and container runs (RUN_MODE). As it was only one variable introducition of docker-compose profiles was not deemed necesary
-local development:
-- export DBT_TARGET=local 
-- export RUN_MODE=local
+Decision
+- DuckDB was chosen for its parallel file loading, broad format support, and ability to handle both ingestion and ad-hoc data exploration without extra tools. 
 
-loader: 
-- concept load data first and then clean it in one place (reduce disperse logic across several systems, support slim/simple loader -> less margin for errors because of cleansing)
-- in search for a generic approach that would allow peformanc, robustness and flexibliltiy (eg. various formats)
-- local developmnet possible with an additional system varible (export run_mode=local)
-- considered: 
-  - dataframes (eg. Pandas/Polars)
-  - bulk loads via postgres extensions (eg. pg_parquet)
-  - bulk loads via DuckDB
-DuckDB was selected because of its fast perfrmance (eg. parallel read on parquet file row groups and parallel processing and over multiple Parquet files at the same time using the glob syntax), portability, broad file supports and good integration with Postgres. It was the most suitable candidate because is it not only support loading data but also enables exploration on raw files without the intorduciton other libraries/tools (so used for loading, potential transformations and data exploration of raw data). 
+Concept:
+- The loader follows a load-first, clean-later approach: all data is ingested as-is before transformation. This keeps the process simple, robust and less error-prone. 
+- The script provides a generic, metadata-aware ingestion for CSV and Parquet files using DuckDB as an intermediary engine and Postgres as the target system. 
 
-File columns names case is preserved (quoted). missing file header results in generic column namings (column01, ..) 
+Key features:
+- Automatic schema handling 
+  - can infer structure from input files or enforce explicit schemas via JSON definitions.  
+- Format flexibility
+  - supports both CSV and Parquet using DuckDB’s built-in functionality.  
+- Metadata tracking
+  - maintains a `load_metadata` table in DuckDB to track load status (`loaded`, `failed`) and prevent duplicate ingestion of already loaded files.  
+- Write modes
+  - supports `append` and `truncate_append` dispositions for flexible reloading.  
+- Incremental awareness
+  - automatically identifies new files and skips previously loaded ones unless `--force-load` is used.  
+- Schema creation
+  - ensures target Postgres schemas exist and creates tables dynamically if missing.  
+- Lightweight setup
+  - no external ETL framework; entirely Python-based with DuckDB handling file I/O and SQL execution.  
+- Local and container mode — switchable via environment variable:  
+
+Example:
+```bash
+python loader.py \
+  --filename "../input/events/*/*" \
+  --table events \
+  --write-disposition truncate_append \
+  --force-load
+```
 
 ### dbt
 
 #### Structure
-Project structure follows standard dbt practices, with separate folders representing data layers (raw, staging, marts).  
-Each folder maps directly to a physical database schema, making it easy to locate corresponding tables and models.
+Project structure follows standard dbt practices, with separate folders representing data layers (raw, staging, marts, reporting). Each folder maps directly to a physical database schema, making it easy to locate corresponding tables and models.
 
 In larger organizations with several department (eg. marketing, sales, consent-management), an additional subfolder level could be introduced in the `staging` and `mart` folder. To keep a flat structure, such organizational context can also be encoded in model names (eg. `fct_cm_event`), improving table uniqueness across departments. The `raw` layer can similarly be organized by source systems when dealing with a large number of sources.
 
@@ -140,16 +177,16 @@ Several tests were created to demonstrate dbt testing functionality.
 They are defined both in the `schema.yml` files and in the dedicated `tests` folder.
 
 Types of tests applied in the project:  
-- **Generic tests**
+- Generic tests
   - dbt-provided tests  
   - Example: `not_null` test on `company_id` in `consent_company_day` ([schema.yml](dbt_project/models/schema.yml)).  
-- **Generic custom tests**
+- Generic custom tests
   - Project-defined reusable tests ([schema.yml](dbt_project/models/schema.yml)).  
   - Example: [is_positive()](dbt_project/tests/generic/is_positive.sql) custom test in `schema.yml` for `consent_company_day`.  
-- **Singular tests**
+- Singular tests
   - Model-specific SQL assertions stored in `/tests/singular/`.  
   - Example: [count_check_company_7725_date_20250905.sql](dbt_project/tests/singular/count_check_company_7725_date_20250905.sql).  
-- **Unit tests** — tests validating transformation logic and expected outputs of models, defined in `/tests/unit/`.  
+- Unit tests — tests validating transformation logic and expected outputs of models, defined in `/tests/unit/`.  
   - Example: [test_stg_consent_basic_flow.yml](dbt_project/tests/unit/test_stg_consent_basic_flow.yml).
 
 Example runs:
@@ -177,21 +214,21 @@ dbt run -s tag:cm
 
 The project implements multiple loading and transformation strategies.  
 
-- **Loader:**  
+- File loader:  
   - Full load – triggered with the `--force-load` option. The write disposition `truncate+append` can be used to clear the target table before reloading.  
   - Incremental load – the default loader mode. It tracks which files have already been loaded and processes only new or modified files.  
 
-- **dbt models:**  
+- dbt models:  
   - Full load – performed using dbt’s built-in `--full-refresh` option to completely rebuild models.  
   - Incremental load – uses dbt’s incremental materialization with configurable reload period.  
 
-- **Incremental strategies:**  
+- Incremental strategies:  
   - Since the events data in consent management is large, incremental processing is essential.  
   - This project uses the `delete+insert` incremental strategy. Its main drawback is that backfills require scanning the full `_uq` (unique key) column, which is often neither partitioned nor clustered, potentially leading to performance issues during large deletions or merges.
   - For high-volume data, using a `microbatch` approach can improve performance when relying on partitioned or clustered keys. This approach also simplifies models by reducing boilerplate code for handling `start_date` and `end_date` variables, as this logic is managed automatically by the framework through passed arguments.
 
 
-- **Backfills:**  
+- Backfills:  
   - Supported in fact tables (eg., [fct_event.sql](dbt_project/models/mart/fct_event.sql), [fct_consent.sql](dbt_project/models/mart/fct_consent.sql)).  
   - Controlled by date variables (`start_date`, `end_date`).  
   - By default, daily runs reload yesterday’s and today’s data.  
@@ -204,24 +241,18 @@ The project implements multiple loading and transformation strategies.
 ### Modeling  
 The solution is designed around two modelling approaches:
 
-1. **Dimensional modelling**, intended for standardised, enterprise-wide adoption. This approach supports business processes via fact tables and provides context through dimension. The target schema is `mart`.  In the assignment two main subject areas were covered: `Consent management` and `Product analytics` for tracking user interactions (events). 
+- **Dimensional modelling**, intended for standardised, enterprise-wide adoption. This approach supports business processes via fact tables and provides context through dimension. The target schema is `mart`.  In the assignment two main subject areas were covered: `Consent management` and `Product analytics` for tracking user interactions (events). 
 
     ![img_1.png](other/bus_matrix.png)
 
     *Figure: Didomi challenge bus matrix*
 
 
-2. **Wide-table modelling**, used exclusively for specific dashboards and performance-driven analyses. This is implemented in schema `report`, and is not meant to be shared broadly across teams.
+- **Wide-table modelling**, used exclusively for specific dashboards and performance-driven analyses. This is implemented in schema `report`, and is not meant to be shared broadly across teams.
 
 
 #### Naming standards
 The project follows consistent naming conventions aligned with common data warehousing practices.
-
-Schemas:
-- `raw` —  untransformed source data loaded as-is from operational systems or files.  
-- `staging` — temporary data prepared for modeling (ephemeral).  
-- `mart` — dimensional models optimized for analytics (facts and dimensions).  
-- `report` — reporting-ready tables tailored to specific dashboard needs; not intended for company-wide sharing.
 
 Table types
 - `stg_` — staging tables; used for normalization and preparation of raw data.  
@@ -304,9 +335,10 @@ Fact tables capture business processes that are relevant to the organisation. Tw
 - Grain: one record per company per day  
   - A daily grain was chosen primarily to aggregate the large volume of consent data. For more granular event-level analysis, the grain would need to be reduced to one record per given consent.
 
-Fact loading concept (incremental):
-- The stage table drives the load (it defines the period, batch, and keys for the `delete+insert` process).  
-- A unique key is used to delete existing records from the target fact, enabling backfills for any defined period.  
+Fact loading concept:
+- Facts are incrementally loaded using dbt's built-in incremental materialisations.
+- The stage table drives the load into the fact (here is defined the load period and keys for the `delete+insert` process).  
+- A unique key is used to delete existing records from the target fact, enabling backfills for any defined period. 
 - Target records are deleted based on distinct keys from the stage table.  
 - This requires a full column scan of the target unique key column during deletion.  
 - In incremental mode, dbt creates an additional `_temp` table populated from the stage.  
@@ -337,9 +369,23 @@ Quite a low consent conversion rate, the top aprox 27%
 
 ![img.png](other/img.png)
 
+40 companies, however only 10 in has events..
+
+
 ## Caveats & notes
 TODO:
 windowing function despite being powerful can be also resouce heavy. For calculating the average time-to-consent metric it is advisable that this time is direcly calculated in the SDK which would reduce the partition scan operation for matching the `consent.asked` and `consent.given` event.
+
+duckdb loader preserves column case which can make it cumbersome to handle in the stage. no option to omit that. 
+
+
+dotakni se semantci models (v dbt or snowfalke)
+
+environemnts: introduciton of a new docker-compose variable to support both local development and container runs (RUN_MODE). As it was only one variable introducition of docker-compose profiles was not deemed necesary
+local development:
+- export DBT_TARGET=local 
+- export RUN_MODE=local
+
 
 For developing the solution locally additional system parameters are needed before running the solution: 
 -  export RUN_MODE=local
@@ -347,9 +393,12 @@ For developing the solution locally additional system parameters are needed befo
 
 add sentence about semantic layer options..
 
-incremental strategies:
+incremental strategies/custom materialisation:
 Both are dbt's built in strategies that are implemented with an additional step (dbt managed _temp tables). While loading the target an additional temporary table is build from which then the load reads and inserts the data into the target. Unfortunatelly this intermediate step cannot be skipped so the only way to improve is to potentially try to create your own materialisation type (which comes with a maintenance overhead).
 
+
+loader:
+Column case is preserved, and files without headers receive generic names (`column01`, `column02`, …).
 
 
 ## Appendix
