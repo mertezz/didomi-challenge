@@ -98,7 +98,7 @@ Each folder maps directly to a physical database schema, making it easy to locat
 
 In larger organizations with several department (eg. marketing, sales, consent-management), an additional subfolder level could be introduced in the `staging` and `mart` folder. To keep a flat structure, such organizational context can also be encoded in model names (eg. `fct_cm_event`), improving table uniqueness across departments. The `raw` layer can similarly be organized by source systems when dealing with a large number of sources.
 
-Schema mapping logic is customized via [`generate_schema_name.sql`](dbt_project/macros/generate_schema_name.sql).  
+Schema mapping logic is customized via [generate_schema_name.sql](dbt_project/macros/generate_schema_name.sql).  
 
 For simplicity, `profiles.yml`, `dbt_project.yml`, and `packages.yml` are all stored in the project root.
 
@@ -106,39 +106,14 @@ Due to small project size, all **schemas, seeds,** and **sources** are defined i
 
 #### Macros
 Jinja templating adds flexibility but can reduce readability and maintainability. 
-Macros were used **only when necessary** to keep the solution simple and maintainable.  
+Macros were used only when necessary to keep the solution simple and maintainable.  
 
-The project reuses **community packages** (eg. `dbt_utils.generate_surrogate_key()`) instead of re-implementing standard utilities.
+The project reuses community packages (eg. `dbt_utils.generate_surrogate_key()`) instead of re-implementing standard utilities.
 
-#### Materialisation TODO
-Materialisaiton are crucial for efficient ... For simplicy and easier maintenace the default materialisation has been changed from `view` to `table`. An excepiton to these are facts where incremental materialisation is used.
+#### Materialisation
+Materialisations are crucial for efficient data processing and performance. For simplicity and easier maintenance, the default materialisation has been changed from `view` to `table`. An exception to this are fact models, where incremental materialisation is used.
 
-Incremantal materialisation can support different strategies. In the project there are two examples of such strategies:
-- `delete+insert` - suitable for staging tables
-- `microbatch` - suitable for large dataset and iterative reloads  
-
-Both are dbt's built in strategies that are implemented with an additional step (dbt managed _temp tables). While loading the target an additional temporary table is build from which then the load reads and inserts the data into the target. Unfortunatelly this intermediate step cannot be skipped so the only way to improve is to potentially try to create your own materialisation type (which comes with a maintenance overhead).
-
-
-TODO: 
--- DELETE+INSERT strategy
--- The incremental stage table drives the load (defines the period, batch and keys for delete+insert)
--- Unique key is used to first delete records from the target fact. This enables backfills of the desired period
--- Target records are deleted based on distinct keys from the stage table
--- Full column scan of target keys is required for deletion
--- Incremental mode creates an additional _temp table from the stage
--- Event time filters are applied only in the stage table, here are not needed
--- Additional performance improvements could be achieved with dbt predicates and microbatching
--- Example:
---  dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
-
-
-RELOAD :  dbt run -s +consent_company_day --vars '{"start_date": "2025-09-05", "end_date": "2025-09-06"}'
--- Define daily load interval (inclusive) 
--- default: yesterday → today, overridable via --vars
-
-dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
-
+Incremental strategies are covered in the section [Load & backfill strategies](#load--backfill-strategies).
 
 #### Data & code checks  
 Several tests were created to demonstrate dbt testing functionality.  
@@ -147,15 +122,15 @@ They are defined both in the `schema.yml` files and in the dedicated `tests` fol
 Types of tests applied in the project:  
 - **Generic tests**
   - dbt-provided tests  
-  - Example: `not_null` test on `company_id` in `consent_company_day` ([`schema.yml`](dbt_project/models/schema.yml)).  
+  - Example: `not_null` test on `company_id` in `consent_company_day` ([schema.yml](dbt_project/models/schema.yml)).  
 - **Generic custom tests**
-  - Project-defined reusable tests ([`schema.yml`](dbt_project/models/schema.yml)).  
-  - Example: [`is_positive()`](dbt_project/tests/generic/is_positive.sql) custom test in `schema.yml` for `consent_company_day`.  
+  - Project-defined reusable tests ([schema.yml](dbt_project/models/schema.yml)).  
+  - Example: [is_positive()](dbt_project/tests/generic/is_positive.sql) custom test in `schema.yml` for `consent_company_day`.  
 - **Singular tests**
   - Model-specific SQL assertions stored in `/tests/singular/`.  
-  - Example: [`count_check_company_7725_date_20250905.sql`](dbt_project/tests/singular/count_check_company_7725_date_20250905.sql).  
+  - Example: [count_check_company_7725_date_20250905.sql](dbt_project/tests/singular/count_check_company_7725_date_20250905.sql).  
 - **Unit tests** — tests validating transformation logic and expected outputs of models, defined in `/tests/unit/`.  
-  - Example: [`test_stg_consent_basic_flow.yml`](dbt_project/tests/unit/test_stg_consent_basic_flow.yml).
+  - Example: [test_stg_consent_basic_flow.yml](dbt_project/tests/unit/test_stg_consent_basic_flow.yml).
 
 Example runs:
 ```bash
@@ -178,30 +153,43 @@ Example: running an incremental load for the entire `consent-management` domain:
 dbt run -s tag:cm
 ````
 
-#### Load & backfill strategies
+#### Load & backfill strategies  
 
-Loader and pipelines embraces different loading strategeies. 
+The project implements multiple loading and transformation strategies.  
 
-Loader: 
-- **full-load** - with the option `--force-load` . Write disposioitn `truncate+append` can be used to first clean the target table
-- **incremental load** - this is the default loader run that tracks which files were already loaded and lods only thenew ones
+- **Loader:**  
+  - Full load – triggered with the `--force-load` option. The write disposition `truncate+append` can be used to clear the target table before reloading.  
+  - Incremental load – the default loader mode. It tracks which files have already been loaded and processes only new or modified files.  
 
-dbt transformations:
-- **full-load** - using the build-in full refresh option
-- **incremental load** - using dbt' sincmenreatl materialisation and strategies
+- **dbt models:**  
+  - Full load – performed using dbt’s built-in `--full-refresh` option to completely rebuild models.  
+  - Incremental load – uses dbt’s incremental materialization with configurable reload period.  
 
-As the events data in consent management is large, an incremental load is a must. In the dbt project is used the incemental strategy `delele+insert` which  
+- **Incremental strategies:**  
+  - Since the events data in consent management is large, incremental processing is essential.  
+  - This project uses the `delete+insert` incremental strategy. Its main drawback is that backfills require scanning the full `_uq` (unique key) column, which is often neither partitioned nor clustered, potentially leading to performance issues during large deletions or merges.
+  - For high-volume data, using a `microbatch` approach can improve performance when relying on partitioned or clustered keys. This approach also simplifies models by reducing boilerplate code for handling `start_date` and `end_date` variables, as this logic is managed automatically by the framework through passed arguments.
 
 
+- **Backfills:**  
+  - Supported in fact tables (eg., [fct_event.sql](dbt_project/models/mart/fct_event.sql), [fct_consent.sql](dbt_project/models/mart/fct_consent.sql)).  
+  - Controlled by date variables (`start_date`, `end_date`).  
+  - By default, daily runs reload yesterday’s and today’s data.  
+  - Custom backfills can be triggered by overriding variables at runtime:  
+    ```bash
+    dbt run -s +consent_company_day --vars '{"start_date": "2025-09-05", "end_date": "2025-09-06"}'
+    ```    
 
 
 ### Modeling  
 The solution is designed around two modelling approaches:
 
-1. **Dimensional modelling**, intended for standardised, enterprise-wide adoption. This approach supports business processes via fact tables and provides context through dimension tables. The target schema is `mart`.  In the assignment one subject area was covered: `consent-management`.
-   
-    
-    TODO: Add bus matrix
+1. **Dimensional modelling**, intended for standardised, enterprise-wide adoption. This approach supports business processes via fact tables and provides context through dimension. The target schema is `mart`.  In the assignment two main subject areas were covered: `Consent management` and `Product analytics` for tracking user interactions (events). 
+
+    ![img_1.png](other/bus_matrix.png)
+
+    *Figure: Didomi challenge bus matrix*
+
 
 2. **Wide-table modelling**, used exclusively for specific dashboards and performance-driven analyses. This is implemented in schema `report`, and is not meant to be shared broadly across teams.
 
@@ -285,9 +273,31 @@ Each dimension also includes the default row to handle unmatched fact records. D
 #### Facts
 TOOD- should describe processes (check..)
 
-granularity:
+- Grain:
     fct_event: event
     fct_consent: company by day
+
+- Loading concept
+
+TODO: 
+-- DELETE+INSERT strategy
+-- The incremental stage table drives the load (defines the period, batch and keys for delete+insert)
+-- Unique key is used to first delete records from the target fact. This enables backfills of the desired period
+-- Target records are deleted based on distinct keys from the stage table
+-- Full column scan of target keys is required for deletion
+-- Incremental mode creates an additional _temp table from the stage
+-- Event time filters are applied only in the stage table, here are not needed
+-- Additional performance improvements could be achieved with dbt predicates and microbatching
+-- Example:
+--  dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
+
+
+RELOAD :  dbt run -s +consent_company_day --vars '{"start_date": "2025-09-05", "end_date": "2025-09-06"}'
+-- Define daily load interval (inclusive) 
+-- default: yesterday → today, overridable via --vars
+
+dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
+
 
 #### Time standardization (UTC)
 Timestamps used for linking facts and dimensions are standardized to UTC to ensure consistent across systems.
@@ -302,7 +312,7 @@ TODO
    - TODO
 Quite a low consent conversion rate, the top aprox 27% 
 
-![img.png](img.png)
+![img.png](other/img.png)
 
 ## Caveats & notes
 TODO:
@@ -313,6 +323,11 @@ For developing the solution locally additional system parameters are needed befo
 -  export DBT_TARGET=local 
 
 add sentence about semantic layer options..
+
+incremental strategies:
+Both are dbt's built in strategies that are implemented with an additional step (dbt managed _temp tables). While loading the target an additional temporary table is build from which then the load reads and inserts the data into the target. Unfortunatelly this intermediate step cannot be skipped so the only way to improve is to potentially try to create your own materialisation type (which comes with a maintenance overhead).
+
+
 
 ## Appendix
 ### Possible next actions
