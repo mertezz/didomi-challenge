@@ -3,6 +3,7 @@ postgres-data
 postgres-data/
 dbt_project/logs/
 dbt_project/target/
+dbt_project/dbt_packages
 scripts/load_metadata.duckdb
 scripts/didomi.db
 
@@ -18,3 +19,7 @@ scripts/didomi.db
 .idea/
 .vscode/
 
+# Specific files
+/dbt_project/package-lock.yml
+/logs/dbt.log
+/dbt_project/.user.yml

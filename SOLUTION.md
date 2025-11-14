@@ -69,7 +69,7 @@ No quality issues were found on crucial event columns (`company_id` and `event_i
 Data issues
 - The `experiment` column was empty and therefore excluded.
 - `country_code` and `region` required trimming (eg., `"ES"` with extra quotes) to correctly match `dim_region`.
-- In `fct_event`, event count values were rounded using `round()` to remove floating-point noise and ensure consistent grouping.
+- In `fct_event`, event count values were rounded using `round()` to remove floating-point noise in the raw table and ensure consistent grouping.
 - Some companies were missing headquarters information (7 out of 40).
 
 Other issues
@@ -358,61 +358,56 @@ An additional reporitng table was created to fullfill the challenge metrics requ
 Timestamps used for linking facts and dimensions are standardized to UTC to ensure consistent across systems.
 End-user reporting or presentation layers may apply local time zone conversions as needed. In this challenge, such conversions were not implemented.
 
-
-
 ## Key Insights
-TODO
-   - 2-3 interesting findings from the metrics you calculated about consent behavior, company performance, or other patterns in the data
-------- 
-   - TODO
-Quite a low consent conversion rate, the top aprox 27% 
 
-![img.png](other/img.png)
+- Companies show generally low consent conversion rates, with most below 10%. The top-performing companies reach around 27% conversion overall.  
 
-40 companies, however only 10 in has events..
+  ![img.png](other/company_consent.png)
+
+- Data insights:
+  - 40 companies exist in the raw dataset, but only 10 generated events.  
+  - The dataset covers a period from `2025-09-05` to `2025-09-10`.  
+  - A notable spike in `consent.given` events occurred on `2025-09-05 01:00` (~2004 events), likely due to synthetic test data.  
+
+  ![img.png](other/consent_spike.png)
+
+- Industry patterns:  
+  - Gaming and Beauty industries significantly outperform others, reaching 27% and 20% conversion rates respectively.  
+  - Other industries remain below 10%, suggesting different user trust or banner design patterns.  
+
+  ![img.png](other/industry_conversion.png)
+
+- Geographic distribution:  
+  - Most `consent.asked` traffic originates from companies with headquaters in France, generating nearly 3x more events than other countries.  
+  - Several companies have undefined headquarters (HQ), indicating a data-quality issue that should be addressed in upstream sources.  
+
+  ![img.png](other/hq_traffic.png)
 
 
 ## Caveats & notes
-TODO:
-windowing function despite being powerful can be also resouce heavy. For calculating the average time-to-consent metric it is advisable that this time is direcly calculated in the SDK which would reduce the partition scan operation for matching the `consent.asked` and `consent.given` event.
+- Performance and computation  
+  - DuckDB loader performance can be further improved by increasing the number of row groups in Parquet exports or by using dedicated `read_csv()` / `read_parquet()` functions that accept multiple files directly in the `FROM` clause. This approach enables full parallelization of file reads. It was intentionally omitted in the current version to keep the loader simple, as files are currently processed iteratively.
+  - SQL window functions, while powerful, can be resource-heavy. For metrics like average time-to-consent, it is more efficient to calculate them directly in the SDK instead of scanning large event partitions.
+  - Incremental materializations in dbt rely on temporary tables (`_temp`), which cannot be skipped. Further optimization would require a custom materialization, but this adds maintenance overhead.
 
-duckdb loader preserves column case which can make it cumbersome to handle in the stage. no option to omit that. 
+- Semantic modeling  
+  - For more dynamic metric calculations (eg., hourly, daily, monthly), a semantic layer (dbt metrics or Snowflake semantic models) can be introduced. This ensures consistent metric definitions across tools, though performance should be considered given the large size of raw events.
 
+- Loader behavior  
+  - The DuckDB loader preserves column case, which can make column handling in staging less convenient.  
+  - Files without headers automatically receive generic column names (`column01`, `column02`, …).
 
-dotakni se semantci models (v dbt or snowfalke)
-
-environemnts: introduciton of a new docker-compose variable to support both local development and container runs (RUN_MODE). As it was only one variable introducition of docker-compose profiles was not deemed necesary
-local development:
-- export DBT_TARGET=local 
-- export RUN_MODE=local
-
-
-For developing the solution locally additional system parameters are needed before running the solution: 
--  export RUN_MODE=local
--  export DBT_TARGET=local 
-
-add sentence about semantic layer options..
-
-incremental strategies/custom materialisation:
-Both are dbt's built in strategies that are implemented with an additional step (dbt managed _temp tables). While loading the target an additional temporary table is build from which then the load reads and inserts the data into the target. Unfortunatelly this intermediate step cannot be skipped so the only way to improve is to potentially try to create your own materialisation type (which comes with a maintenance overhead).
-
-
-loader:
-Column case is preserved, and files without headers receive generic names (`column01`, `column02`, …).
+- Development environments  
+  - Introduced a single Docker variable `RUN_MODE` to support both local and container runs; Docker profiles were not added since only one toggle was needed.  
+  - For local development, set environment variables before execution:
+    ```bash
+    export RUN_MODE=local
+    export DBT_TARGET=local
+    ```
 
 
 ## Appendix
-### Possible next actions
-**DuckDB loader performance**
-
-The loader relies on DuckDB’s built-in readers, which parallelize file reads whenever possible (eg, based on the number of row groups in the Parquet file).
-
-In addition to increasing the number of row groups in the exported Parquet files, a potential improvement to further enhance parallelization would be to leverage glob patterns or the `read_csv()` / `read_parquet()` functions that can accept multiple files directly in the `FROM` clause. 
-
-This functionality was intentionally omitted in the current version to keep the loader simple. Files are currently processed iteratively.
-
-### DuckDB 
-#### Benchmark INSERT INTO vs COPY TO
+### Benchmark INSERT INTO vs COPY TO
 A quick benchmark comparing the INSERT INTO and COPY commands showed no significant difference in load performance when using DuckDB to load data from Parquet files into Postgres. Therefore, due to greater flexibility (e.g., the option to add timestamp and filename columns), the solution is implemented using the INSERT INTO command.
 ```sql 
 -- 1. Generate synthetic data: 10M rows with 5 random columns
@@ -446,7 +441,7 @@ select
   (select count(*) from pg.raw.bench_copy) as copy_count;
 
 ```
-#### DuckDB database access limitation
+### DuckDB database access limitation
 
 DuckDB does not support simultaneous access to the same database file from multiple processes (eg. load_metadata table).
 When one process holds a write connection (eg, the Python loader), any additional process even in read-only mode (eg, DataGrip) will trigger a file lock conflict.
