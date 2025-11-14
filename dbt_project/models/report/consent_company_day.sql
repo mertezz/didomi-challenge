@@ -10,8 +10,8 @@
 
 -- Define daily load interval (inclusive)
 -- default: yesterday → today, overridable via --vars
-{% set start_date = var('start_date', (modules.datetime.date.today() - modules.datetime.timedelta(days=1)).isoformat()) %}
-{% set end_date   = var('end_date', modules.datetime.date.today().isoformat()) %}
+{% set start_date = var('start_date', "current_date - interval '1 day'") %}
+{% set end_date   = var('end_date',   "current_date") %}
 
 with consents as (
     select

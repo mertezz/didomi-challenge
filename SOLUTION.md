@@ -42,8 +42,18 @@ make load
 make deps
 make seed
 make dbt-run
-
+make dbt-test
+# make dbt-show # supported however not suitable 
 ```
+
+```sql 
+
+SQL:
+select * 
+from report.consent_company_day
+limit 100;
+```
+
 
 ## Data Quality Observations
    - What data quality issues did you encounter?
@@ -130,12 +140,35 @@ RELOAD :  dbt run -s +consent_company_day --vars '{"start_date": "2025-09-05", "
 dbt run -s +fct_event --vars '{"start_date": "2025-11-01", "end_date": "2025-11-12"}'
 
 
-#### Data checks
-Data checks ... several types
+#### Data & code checks  
+Several tests were created to demonstrate dbt testing functionality.  
+They are defined both in the `schema.yml` files and in the dedicated `tests` folder.
 
-#### Unit tests
-Unit test .. 
+Types of tests applied in the project:  
+- **Generic tests**
+  - dbt-provided tests  
+  - Example: `not_null` test on `company_id` in `consent_company_day` ([`schema.yml`](dbt_project/models/schema.yml)).  
+- **Generic custom tests**
+  - Project-defined reusable tests ([`schema.yml`](dbt_project/models/schema.yml)).  
+  - Example: [`is_positive()`](dbt_project/tests/generic/is_positive.sql) custom test in `schema.yml` for `consent_company_day`.  
+- **Singular tests**
+  - Model-specific SQL assertions stored in `/tests/singular/`.  
+  - Example: [`count_check_company_7725_date_20250905.sql`](dbt_project/tests/singular/count_check_company_7725_date_20250905.sql).  
+- **Unit tests** — tests validating transformation logic and expected outputs of models, defined in `/tests/unit/`.  
+  - Example: [`test_stg_consent_basic_flow.yml`](dbt_project/tests/unit/test_stg_consent_basic_flow.yml).
 
+Example runs:
+```bash
+# Run all tests in the project
+dbt test
+
+# Run tests only for a specific model
+dbt test -s consent_company_day
+``` 
+
+Tests can be executed as part of CI/CD pipelines or a broader continuous data quality framework.
+
+They ensure schema integrity, data validity, and correctness of transformation logic throughout the project lifecycle.
 
 #### Tags  
 Tags in this project are primarily used to support external scheduling, simplify production operations, and enable cost tracking across subject areas.  
@@ -145,9 +178,21 @@ Example: running an incremental load for the entire `consent-management` domain:
 dbt run -s tag:cm
 ````
 
-#### Loads
-full-refresh:
-incremental: different strategies.. mention microbatches for large dataset.. also caveats..
+#### Load & backfill strategies
+
+Loader and pipelines embraces different loading strategeies. 
+
+Loader: 
+- **full-load** - with the option `--force-load` . Write disposioitn `truncate+append` can be used to first clean the target table
+- **incremental load** - this is the default loader run that tracks which files were already loaded and lods only thenew ones
+
+dbt transformations:
+- **full-load** - using the build-in full refresh option
+- **incremental load** - using dbt' sincmenreatl materialisation and strategies
+
+As the events data in consent management is large, an incremental load is a must. In the dbt project is used the incemental strategy `delele+insert` which  
+
+
 
 
 ### Modeling  

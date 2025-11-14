@@ -1,4 +1,4 @@
--- Example run:
+-- Example runs:
 --  explicit: dbt test -s not_empty_consent_company_day
 --  all related tests to the model: dbt test -s consent_company_day
 

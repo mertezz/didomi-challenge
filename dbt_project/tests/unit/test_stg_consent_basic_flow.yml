@@ -1,51 +1,51 @@
-# Example run: dbt test -s stg_consent_basic_flow
-# Disabled due to issues with modules.datetime.date.today() inside modules context.
+# Example run:
+#  dbt test -s stg_consent_basic_flow
+#  dbt test -s stg_consent
 
-#
-#version: 2
-#
-#unit_tests:
-#  - name: stg_consent_basic_flow
-#    model: stg_consent
-#
-#    overrides:
-#      macros:
-#        is_incremental: false
-#      vars:
-#        start_date: "2025-05-01"
-#        end_date: "2025-05-01"
-#
-#    given:
-#      - input: ref('fct_event')
-#        rows:
-#          - event_id: "e1"
-#            event_type: "consent.asked"
-#            event_count: 1
-#            event_dttm: "2025-05-01 10:00:00"
-#            user_id: "u1"
-#            company_id: "c1"
-#            consent_status: null
-#
-#          - event_id: "e2"
-#            event_type: "consent.given"
-#            event_count: 1
-#            event_dttm: "2025-05-01 10:02:00"
-#            user_id: "u1"
-#            company_id: "c1"
-#            consent_status: "full opt-in"
-#
-#    expect:
-#      rows:
-#        - company_id: "c1"
-#          event_dt: "2025-05-01"
-#          event_count: 2
-#          event_pageview_count: null
-#          event_consent_asked_count: 1
-#          event_consent_given_count: 1
-#          event_ui_action_count: null
-#          consent_given_full_opt_in_count: 1
-#          consent_given_opt_out_count: null
-#          consent_given_partial_opt_in_count: null
-#          consent_given_empty_count: null
-#          consent_conversion_rate: 1.00
-#          origin: "fct_event"
+version: 2
+
+unit_tests:
+  - name: stg_consent_basic_flow
+    model: stg_consent
+
+    overrides:
+      macros:
+        is_incremental: false
+      vars:
+        start_date: "2025-05-01"
+        end_date: "2025-05-01"
+
+    given:
+      - input: ref('fct_event')
+        rows:
+          - event_id: "e1"
+            event_type: "consent.asked"
+            event_count: 1
+            event_dttm: "2025-05-01 10:00:00"
+            user_id: "u1"
+            company_id: "c1"
+            consent_status: null
+
+          - event_id: "e2"
+            event_type: "consent.given"
+            event_count: 1
+            event_dttm: "2025-05-01 10:02:00"
+            user_id: "u1"
+            company_id: "c1"
+            consent_status: "full opt-in"
+
+    expect:
+      rows:
+        - company_id: "c1"
+          event_dt: "2025-05-01"
+          event_count: 2
+          event_pageview_count: null
+          event_consent_asked_count: 1
+          event_consent_given_count: 1
+          event_ui_action_count: null
+          consent_given_full_opt_in_count: 1
+          consent_given_opt_out_count: null
+          consent_given_partial_opt_in_count: null
+          consent_given_empty_count: null
+          consent_conversion_rate: "1.00"
+          origin: "fct_event"
